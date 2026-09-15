@@ -1094,8 +1094,17 @@ impl Isolate {
   }
 
   #[inline(always)]
-  pub(crate) fn global_liveness(&self) -> NonNull<IsolateLiveness> {
-    self.get_annex().global_liveness
+  pub(crate) fn global_liveness(&self) -> &IsolateLiveness {
+    self.get_annex().global_liveness()
+  }
+
+  /// One liveness reference for a new `Global`; released when that
+  /// `Global` is dropped or converted with `Global::into_raw`. Code that
+  /// only needs to observe the cell goes through [`Self::global_liveness`]
+  /// instead and stays refcount-free.
+  #[inline(always)]
+  pub(crate) fn clone_global_liveness(&self) -> Arc<IsolateLiveness> {
+    Arc::clone(&self.get_annex().global_liveness)
   }
 
   /// See [`IsolateHandle::terminate_execution`]
@@ -1221,7 +1230,9 @@ impl Isolate {
   /// Drains any guaranteed finalizers V8's teardown GC may have
   /// registered, then drops the annex box. `ANNEX_SLOT` is not cleared
   /// because the isolate is gone — its embedder data storage no longer
-  /// exists.
+  /// exists. Dropping the annex releases its reference to the liveness
+  /// cell, which is freed with its last reference — this drop, or a
+  /// late-dropped `Global`'s.
   ///
   /// # Safety
   ///
@@ -2242,7 +2253,14 @@ pub(crate) struct IsolateAnnex {
   finalizer_map: FinalizerMap,
   maybe_snapshot_creator: Option<SnapshotCreator>,
   isolate_handle: IsolateHandle,
-  global_liveness: NonNull<IsolateLiveness>,
+  /// Liveness cell shared with every `Global` hosted by this isolate.
+  /// Globals may be dropped after their host isolate is disposed; each
+  /// holds a reference so those late drops can observe the null isolate
+  /// pointer, and the last reference — annex or `Global` — frees the
+  /// cell instead of leaking it. Refcount traffic is confined to
+  /// `Global` creation and destruction, which already pay a V8 FFI
+  /// call; liveness reads on access stay refcount-free.
+  global_liveness: Arc<IsolateLiveness>,
   /// Number of live `Weak` handles, maintained so `try_into_shared()` can
   /// reject isolates with outstanding weaks (their GC callbacks are not
   /// thread-safe against the owning `Weak`).
@@ -2255,17 +2273,13 @@ pub(crate) struct IsolateAnnex {
 
 impl IsolateAnnex {
   fn new(isolate: &Isolate, create_param_allocations: Box<dyn Any>) -> Self {
-    // Globals may be dropped after their host isolate is disposed. Keep this
-    // tiny liveness cell valid so those late drops can observe the null isolate
-    // pointer without retaining an Arc per Global.
-    let global_liveness = Box::leak(Box::new(IsolateLiveness::new(isolate)));
     Self {
       create_param_allocations: Some(create_param_allocations),
       slots: HashMap::default(),
       finalizer_map: FinalizerMap::default(),
       maybe_snapshot_creator: None,
       isolate_handle: IsolateHandle::new(isolate),
-      global_liveness: NonNull::from(global_liveness),
+      global_liveness: Arc::new(IsolateLiveness::new(isolate)),
       live_weak_count: 0,
       has_embedder_cpp_heap: false,
     }
@@ -2273,7 +2287,7 @@ impl IsolateAnnex {
 
   #[inline(always)]
   fn global_liveness(&self) -> &IsolateLiveness {
-    unsafe { self.global_liveness.as_ref() }
+    &self.global_liveness
   }
 
   #[inline(always)]
@@ -2547,6 +2561,14 @@ impl IsolateLiveness {
     for reset in drained.into_iter().flatten() {
       reset.reset();
     }
+  }
+}
+
+impl Debug for IsolateLiveness {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    f.debug_struct("IsolateLiveness")
+      .field("isolate", &self.get_isolate_ptr())
+      .finish_non_exhaustive()
   }
 }
 
@@ -2891,7 +2913,7 @@ impl OwnedIsolate {
 
     unsafe {
       let isolate_handle = self.thread_safe_handle();
-      self.global_liveness().as_ref().mark_shared();
+      self.global_liveness().mark_shared();
       self.exit();
       let cxx_isolate = self.cxx_isolate;
       forget(self);

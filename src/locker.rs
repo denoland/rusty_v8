@@ -191,10 +191,7 @@ impl Drop for SharedIsolateInner {
       let ptr = self.cxx_isolate.as_ptr();
       let mut raw = Box::new(RawLocker([0; 2]));
       v8__Locker__CONSTRUCT(&mut *raw, ptr);
-      isolate
-        .global_liveness()
-        .as_ref()
-        .close_deferred_global_resets();
+      isolate.global_liveness().close_deferred_global_resets();
       v8__Locker__DESTRUCT(&mut *raw);
       let (annex_ptr, _create_param_allocations) =
         isolate.prepare_annex_for_dispose();
@@ -246,7 +243,6 @@ impl<'s> Locker<'s> {
       // Release Globals that were dropped by threads not holding the lock.
       locker
         .global_liveness()
-        .as_ref()
         .maybe_drain_deferred_global_resets();
       locker
     }
@@ -285,10 +281,7 @@ impl<'s> Locker<'s> {
       );
       // Release what other threads queued while we held the lock; they
       // can't do it themselves, and we're about to stop being able to.
-      self
-        .global_liveness()
-        .as_ref()
-        .maybe_drain_deferred_global_resets();
+      self.global_liveness().maybe_drain_deferred_global_resets();
     }
     unsafe { v8__Isolate__Exit(ptr) };
     let mut raw = Box::new(RawUnlocker([0; 1]));
@@ -328,7 +321,6 @@ impl Drop for RelockGuard {
       // lock acquisition boundary just like `SharedIsolate::lock()`.
       Isolate::from_non_null(self.cxx_isolate)
         .global_liveness()
-        .as_ref()
         .maybe_drain_deferred_global_resets();
     }
   }
@@ -340,10 +332,7 @@ impl Drop for Locker<'_> {
       // Final drain while we still hold the lock, so cells dropped by
       // other threads during this lock don't sit in the queue (keeping
       // their JS objects alive) until the next acquisition.
-      self
-        .global_liveness()
-        .as_ref()
-        .maybe_drain_deferred_global_resets();
+      self.global_liveness().maybe_drain_deferred_global_resets();
       assert!(
         std::ptr::eq(self.cxx_isolate.as_ptr(), v8__Isolate__TryGetCurrent()),
         "Locker dropped while its isolate was not the entered one; lockers \
