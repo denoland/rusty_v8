@@ -1598,6 +1598,10 @@ void v8__ObjectTemplate__SetImmutableProto(const v8::ObjectTemplate& self) {
   return ptr_to_local(&self)->SetImmutableProto();
 }
 
+void v8__ObjectTemplate__MarkAsUndetectable(const v8::ObjectTemplate& self) {
+  return ptr_to_local(&self)->MarkAsUndetectable();
+}
+
 void v8__ObjectTemplate__SetCallAsFunctionHandler(
     const v8::ObjectTemplate& self, v8::FunctionCallback callback,
     const v8::Value* data_or_null) {
