@@ -14,7 +14,11 @@ jobs:
   build:
     name: ${{ matrix.config.variant }} ${{ matrix.config.target }} ${{ matrix.config.v8_enable_pointer_compression && 'ptrcomp' || '' }} ${{ matrix.config.v8_enable_multi_cage && 'multicage' || '' }}
     runs-on: ${{ matrix.config.os }}
-    timeout-minutes: 180
+    # Standard runners have fewer cores than the larger runners this matrix
+    # used to run on, so a cold-cache build takes considerably longer: the
+    # debug riscv64 cross build no longer fits in 180 minutes, and the debug
+    # aarch64 one only just did. 360 is the ceiling GitHub allows.
+    timeout-minutes: 360
     strategy:
       # Always run main branch builds to completion. This allows the cache to
       # stay mostly up-to-date in situations where a single job fails due to
