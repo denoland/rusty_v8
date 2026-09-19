@@ -520,6 +520,14 @@ fn build_v8(is_asan: bool) {
       maybe_install_sysroot("amd64");
     }
   }
+  // Without this, GN defaults target_cpu to host_cpu, which the Apple Silicon
+  // block above pins to "arm64". An x86_64 macOS build hosted on arm64 (as CI
+  // does, to stay on the free standard runner) would then silently produce an
+  // arm64 V8 for an x86_64 Rust target. On an x86_64 host this matches GN's
+  // own default and is a no-op.
+  if target_arch == "x86_64" {
+    gn_args.push(r#"target_cpu="x64""#.to_string());
+  }
   if target_arch == "arm" {
     gn_args.push(r#"target_cpu="arm""#.to_string());
     gn_args.push(r#"v8_target_cpu="arm""#.to_string());
