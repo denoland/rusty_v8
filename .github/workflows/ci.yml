@@ -27,25 +27,25 @@ jobs:
         !contains(github.event.pull_request.labels.*.name, 'no-fail-fast') }}
       matrix:
         config:
-          - os: macos-15-large
+          - os: macos-15
             target: x86_64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-15-large
+          - os: macos-15
             target: x86_64-apple-darwin
             variant: release
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: macos-15-large
+          - os: macos-15
             target: x86_64-apple-darwin
             variant: debug
             v8_enable_pointer_compression: true
             cargo: cargo
 
-          - os: macos-15-large
+          - os: macos-15
             target: x86_64-apple-darwin
             variant: release
             v8_enable_pointer_compression: true
@@ -91,25 +91,25 @@ jobs:
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             variant: debug
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             variant: release
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             variant: debug
             v8_enable_pointer_compression: true
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             variant: release
             v8_enable_pointer_compression: true
@@ -119,7 +119,7 @@ jobs:
           # `v8::IsolateGroup::create()` works. Built and tested here so the
           # isolate group code stays honest, but deliberately not published:
           # embedders that want it build this crate from source.
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             variant: release
             v8_enable_pointer_compression: true
@@ -131,7 +131,7 @@ jobs:
           # Release only for now, like the iOS targets: V8's debug-only
           # execinfo backtrace path (external-reference-table.cc) assumes glibc
           # and doesn't compile against musl.
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-musl
             variant: release
             v8_enable_pointer_compression: false
@@ -140,7 +140,7 @@ jobs:
 
           # aarch64 musl: cross-compiled on the x64 glibc runner (host + snapshot
           # toolchains stay glibc; only the arm64 target objects are musl).
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: aarch64-unknown-linux-musl
             variant: release
             v8_enable_pointer_compression: false
@@ -153,25 +153,25 @@ jobs:
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: aarch64-unknown-linux-gnu
             variant: debug
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: aarch64-unknown-linux-gnu
             variant: release
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: riscv64gc-unknown-linux-gnu
             variant: debug
             v8_enable_pointer_compression: false
             cargo: cargo
 
-          - os: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+          - os: ubuntu-22.04
             target: riscv64gc-unknown-linux-gnu
             variant: release
             v8_enable_pointer_compression: false
@@ -270,6 +270,16 @@ jobs:
         if: contains(matrix.config.target, 'ios')
         run: rustup target add ${{ matrix.config.target }}
 
+      # x86_64 macOS is cross-compiled on the free arm64 macOS runner (the
+      # x86_64 "large" runner is billed even on public repos). Unlike the iOS
+      # and musl cross builds, the test suite still runs here: the x86_64 test
+      # binaries execute under Rosetta 2.
+      - name: Install x86_64 macOS target and Rosetta 2
+        if: matrix.config.target == 'x86_64-apple-darwin'
+        run: |
+          rustup target add x86_64-apple-darwin
+          softwareupdate --install-rosetta --agree-to-license
+
       - name: Install musl cross compilation toolchain
         if: contains(matrix.config.target, '-linux-musl')
         run: |
@@ -346,7 +356,9 @@ jobs:
         run: |
           $version = "v0.8.2"
           $platform =
-            @{ "x86_64-apple-darwin"       = "x86_64-apple-darwin"
+            @{ # x86_64 macOS cross-compiles on the arm64 macOS runner, so use
+               # the host sccache binary.
+               "x86_64-apple-darwin"       = "aarch64-apple-darwin"
                "aarch64-apple-darwin"      = "aarch64-apple-darwin"
                "x86_64-unknown-linux-gnu"  = "x86_64-unknown-linux-musl"
                "x86_64-unknown-linux-musl" = "x86_64-unknown-linux-musl"
@@ -682,7 +694,7 @@ jobs:
 
   publish:
     needs: [build, build-windows-arm64]
-    runs-on: ${{ github.repository == 'denoland/rusty_v8' && 'ubuntu-22.04-xl' || 'ubuntu-22.04' }}
+    runs-on: ubuntu-22.04
     if: github.repository == 'denoland/rusty_v8' && startsWith(github.ref, 'refs/tags/')
     steps:
       - name: Configure git
