@@ -72,6 +72,14 @@ unsafe extern "C" {
   fn v8__Exception__ReferenceError(message: *const String) -> *const Value;
   fn v8__Exception__SyntaxError(message: *const String) -> *const Value;
   fn v8__Exception__TypeError(message: *const String) -> *const Value;
+  #[cfg(v8_enable_webassembly)]
+  fn v8__Exception__WasmCompileError(message: *const String) -> *const Value;
+  #[cfg(v8_enable_webassembly)]
+  fn v8__Exception__WasmLinkError(message: *const String) -> *const Value;
+  #[cfg(v8_enable_webassembly)]
+  fn v8__Exception__WasmRuntimeError(message: *const String) -> *const Value;
+  #[cfg(v8_enable_webassembly)]
+  fn v8__Exception__WasmSuspendError(message: *const String) -> *const Value;
 
   fn v8__Exception__CreateMessage(
     isolate: *mut RealIsolate,
@@ -143,8 +151,8 @@ impl StackTrace {
 
 impl StackFrame {
   /// Returns the number, 1-based, of the line for the associated function call.
-  /// This method will return Message::kNoLineNumberInfo if it is unable to
-  /// retrieve the line number, or if kLineNumber was not passed as an option
+  /// This method will return [`Message::NO_LINE_NUMBER_INFO`] if it is unable
+  /// to retrieve the line number, or if kLineNumber was not passed as an option
   /// when capturing the StackTrace.
   #[inline(always)]
   pub fn get_line_number(&self) -> usize {
@@ -153,16 +161,16 @@ impl StackFrame {
 
   /// Returns the 1-based column offset on the line for the associated function
   /// call.
-  /// This method will return Message::kNoColumnInfo if it is unable to retrieve
-  /// the column number, or if kColumnOffset was not passed as an option when
-  /// capturing the StackTrace.
+  /// This method will return [`Message::NO_COLUMN_INFO`] if it is unable to
+  /// retrieve the column number, or if kColumnOffset was not passed as an
+  /// option when capturing the StackTrace.
   #[inline(always)]
   pub fn get_column(&self) -> usize {
     unsafe { v8__StackFrame__GetColumn(self) as usize }
   }
 
   /// Returns the id of the script for the function for this StackFrame.
-  /// This method will return Message::kNoScriptIdInfo if it is unable to
+  /// This method will return [`Message::NO_SCRIPT_ID_INFO`] if it is unable to
   /// retrieve the script id, or if kScriptId was not passed as an option when
   /// capturing the StackTrace.
   #[inline(always)]
@@ -252,6 +260,24 @@ impl StackFrame {
 }
 
 impl Message {
+  /// Returned in place of a line number when no line number information is
+  /// available.
+  ///
+  /// This is V8's `Message::kNoLineNumberInfo`.
+  pub const NO_LINE_NUMBER_INFO: usize = 0;
+
+  /// Returned in place of a column number when no column information is
+  /// available.
+  ///
+  /// This is V8's `Message::kNoColumnInfo`.
+  pub const NO_COLUMN_INFO: usize = 0;
+
+  /// Returned in place of a script id when no script id information is
+  /// available.
+  ///
+  /// This is V8's `Message::kNoScriptIdInfo`.
+  pub const NO_SCRIPT_ID_INFO: usize = 0;
+
   #[inline(always)]
   pub fn get<'s>(&self, scope: &PinScope<'s, '_>) -> Local<'s, String> {
     unsafe { scope.cast_local(|_| v8__Message__Get(self)) }.unwrap()
@@ -397,6 +423,68 @@ impl Exception {
     message: Local<String>,
   ) -> Local<'s, Value> {
     Self::new_error_with(scope, message, v8__Exception__TypeError)
+  }
+
+  /// Creates a `WebAssembly.CompileError`.
+  ///
+  /// Only available when V8 is built with WebAssembly support, which is the
+  /// default everywhere except iOS.
+  #[cfg(v8_enable_webassembly)]
+  #[inline(always)]
+  pub fn wasm_compile_error<'s>(
+    scope: &PinScope<'s, '_>,
+    message: Local<String>,
+  ) -> Local<'s, Value> {
+    Self::new_error_with(scope, message, v8__Exception__WasmCompileError)
+  }
+
+  /// Creates a `WebAssembly.LinkError`.
+  ///
+  /// Only available when V8 is built with WebAssembly support, which is the
+  /// default everywhere except iOS.
+  #[cfg(v8_enable_webassembly)]
+  #[inline(always)]
+  pub fn wasm_link_error<'s>(
+    scope: &PinScope<'s, '_>,
+    message: Local<String>,
+  ) -> Local<'s, Value> {
+    Self::new_error_with(scope, message, v8__Exception__WasmLinkError)
+  }
+
+  /// Creates a `WebAssembly.RuntimeError`.
+  ///
+  /// Only available when V8 is built with WebAssembly support, which is the
+  /// default everywhere except iOS.
+  #[cfg(v8_enable_webassembly)]
+  #[inline(always)]
+  pub fn wasm_runtime_error<'s>(
+    scope: &PinScope<'s, '_>,
+    message: Local<String>,
+  ) -> Local<'s, Value> {
+    Self::new_error_with(scope, message, v8__Exception__WasmRuntimeError)
+  }
+
+  /// Creates a `WebAssembly.SuspendError`.
+  ///
+  /// Only available when V8 is built with WebAssembly support, which is the
+  /// default everywhere except iOS.
+  ///
+  /// # Safety-relevant caveat
+  ///
+  /// Unlike the other WebAssembly errors, `SuspendError` is installed by V8's
+  /// JavaScript Promise Integration setup rather than by the base WebAssembly
+  /// setup, and JSPI is skipped when the `--wasm-jitless` flag is set. Calling
+  /// this on an isolate whose context never got JSPI installed reads an empty
+  /// native context slot. Do not call it if you run V8 with `--wasm-jitless`;
+  /// `typeof WebAssembly.SuspendError === "function"` tells you whether the
+  /// current context has it.
+  #[cfg(v8_enable_webassembly)]
+  #[inline(always)]
+  pub fn wasm_suspend_error<'s>(
+    scope: &PinScope<'s, '_>,
+    message: Local<String>,
+  ) -> Local<'s, Value> {
+    Self::new_error_with(scope, message, v8__Exception__WasmSuspendError)
   }
 
   /// Internal helper to make the above error constructors less repetitive.

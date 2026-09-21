@@ -2675,6 +2675,16 @@ bool v8__Message__IsSharedCrossOrigin(const v8::Message& self) {
 
 bool v8__Message__IsOpaque(const v8::Message& self) { return self.IsOpaque(); }
 
+// These are exposed on the Rust side as associated constants on `Message`.
+// They are plain zeroes in every V8 release so far; the static asserts make
+// sure the Rust-side values keep matching the C++ ones.
+static_assert(v8::Message::kNoLineNumberInfo == 0,
+              "v8::Message::kNoLineNumberInfo is no longer 0");
+static_assert(v8::Message::kNoColumnInfo == 0,
+              "v8::Message::kNoColumnInfo is no longer 0");
+static_assert(v8::Message::kNoScriptIdInfo == 0,
+              "v8::Message::kNoScriptIdInfo is no longer 0");
+
 const v8::Value* v8__Exception__RangeError(const v8::String& message) {
   return local_to_ptr(v8::Exception::RangeError(ptr_to_local(&message)));
 }
@@ -2690,6 +2700,29 @@ const v8::Value* v8__Exception__SyntaxError(const v8::String& message) {
 const v8::Value* v8__Exception__TypeError(const v8::String& message) {
   return local_to_ptr(v8::Exception::TypeError(ptr_to_local(&message)));
 }
+
+// The WebAssembly error constructors read their JSFunction out of a native
+// context slot that only WasmJs::Install() populates, so they are unusable --
+// and not merely useless -- in a build without WebAssembly. Compile them out
+// entirely there; `build.rs` emits a matching `v8_enable_webassembly` cfg so
+// the Rust bindings disappear alongside them.
+#if V8_ENABLE_WEBASSEMBLY
+const v8::Value* v8__Exception__WasmCompileError(const v8::String& message) {
+  return local_to_ptr(v8::Exception::WasmCompileError(ptr_to_local(&message)));
+}
+
+const v8::Value* v8__Exception__WasmLinkError(const v8::String& message) {
+  return local_to_ptr(v8::Exception::WasmLinkError(ptr_to_local(&message)));
+}
+
+const v8::Value* v8__Exception__WasmRuntimeError(const v8::String& message) {
+  return local_to_ptr(v8::Exception::WasmRuntimeError(ptr_to_local(&message)));
+}
+
+const v8::Value* v8__Exception__WasmSuspendError(const v8::String& message) {
+  return local_to_ptr(v8::Exception::WasmSuspendError(ptr_to_local(&message)));
+}
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 const v8::Value* v8__Exception__Error(const v8::String& message) {
   return local_to_ptr(v8::Exception::Error(ptr_to_local(&message)));
