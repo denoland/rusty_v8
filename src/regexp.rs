@@ -28,6 +28,12 @@ unsafe extern "C" {
     pattern: *const String,
     flags: RegExpCreationFlags,
   ) -> *const RegExp;
+  fn v8__RegExp__NewWithBacktrackLimit(
+    context: *const Context,
+    pattern: *const String,
+    flags: RegExpCreationFlags,
+    backtrack_limit: u32,
+  ) -> *const RegExp;
   fn v8__RegExp__Exec(
     this: *const RegExp,
     context: *const Context,
@@ -46,6 +52,31 @@ impl RegExp {
     unsafe {
       scope.cast_local(|sd| {
         v8__RegExp__New(sd.get_current_context(), &*pattern, flags)
+      })
+    }
+  }
+
+  /// Like [`new`], but additionally specifies a backtrack limit. If the number
+  /// of backtracks done in one [`exec`] call hits the limit, a match failure is
+  /// immediately returned.
+  ///
+  /// [`new`]: RegExp::new
+  /// [`exec`]: RegExp::exec
+  #[inline(always)]
+  pub fn new_with_backtrack_limit<'s>(
+    scope: &PinScope<'s, '_>,
+    pattern: Local<String>,
+    flags: RegExpCreationFlags,
+    backtrack_limit: u32,
+  ) -> Option<Local<'s, RegExp>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__RegExp__NewWithBacktrackLimit(
+          sd.get_current_context(),
+          &*pattern,
+          flags,
+          backtrack_limit,
+        )
       })
     }
   }

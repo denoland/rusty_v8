@@ -4,6 +4,7 @@ use crate::AccessorNameSetterCallback;
 use crate::Array;
 use crate::Context;
 use crate::Data;
+use crate::FunctionTemplate;
 use crate::GetPropertyNamesArgs;
 use crate::IndexFilter;
 use crate::KeyCollectionMode;
@@ -83,6 +84,10 @@ unsafe extern "C" {
     index: u32,
   ) -> *const Value;
   fn v8__Object__GetPrototype(this: *const Object) -> *const Value;
+  fn v8__Object__FindInstanceInPrototypeChain(
+    this: *const Object,
+    tmpl: *const FunctionTemplate,
+  ) -> *const Object;
   fn v8__Object__Set(
     this: *const Object,
     context: *const Context,
@@ -281,6 +286,16 @@ unsafe extern "C" {
     length: usize,
   ) -> *const Array;
   fn v8__Array__Length(array: *const Array) -> u32;
+  fn v8__Array__Iterate(
+    array: *const Array,
+    context: *const Context,
+    callback: unsafe extern "C" fn(
+      index: u32,
+      element: *const Value,
+      data: *mut c_void,
+    ) -> ArrayIterationResult,
+    callback_data: *mut c_void,
+  ) -> bool;
   fn v8__Map__New(isolate: *mut RealIsolate) -> *const Map;
   fn v8__Map__Clear(this: *const Map);
   fn v8__Map__Get(
@@ -559,6 +574,21 @@ impl Object {
     scope: &PinScope<'s, '_>,
   ) -> Option<Local<'s, Value>> {
     unsafe { scope.cast_local(|_| v8__Object__GetPrototype(self)) }
+  }
+
+  /// Finds an instance of the given function template in the prototype chain.
+  ///
+  /// Returns `None` if no instance was found.
+  #[inline(always)]
+  pub fn find_instance_in_prototype_chain<'s>(
+    &self,
+    scope: &PinScope<'s, '_>,
+    tmpl: Local<FunctionTemplate>,
+  ) -> Option<Local<'s, Object>> {
+    unsafe {
+      scope
+        .cast_local(|_| v8__Object__FindInstanceInPrototypeChain(self, &*tmpl))
+    }
   }
 
   /// Note: SideEffectType affects the getter only, not the setter.
@@ -1304,6 +1334,75 @@ impl Array {
   pub fn length(&self) -> u32 {
     unsafe { v8__Array__Length(self) }
   }
+
+  /// Calls `callback` for every element of this array.
+  ///
+  /// This function will typically be faster than calling [`get_index()`]
+  /// repeatedly. As a consequence of being optimized for low overhead, the
+  /// provided callback must adhere to the following restrictions:
+  ///
+  /// - It must not allocate any V8 objects and continue iterating; it may
+  ///   allocate (e.g. an error message/object) and then immediately terminate
+  ///   the iteration.
+  /// - It must not modify the array being iterated.
+  /// - It must not call back into V8 (unless it can guarantee that such a call
+  ///   does not violate the above restrictions, which is difficult).
+  /// - The element handle must not "escape", i.e. must not be assigned to any
+  ///   other `Local`. Creating a `Global` from it is safe.
+  ///
+  /// Returns `None` on exception; use a [`TryCatch`] to catch and handle the
+  /// exception. When the callback returns [`ArrayIterationResult::Exception`],
+  /// iteration is terminated immediately, returning `None`. By returning
+  /// [`ArrayIterationResult::Break`], the callback can request non-exceptional
+  /// early termination of the iteration.
+  ///
+  /// [`get_index()`]: Object::get_index
+  /// [`TryCatch`]: crate::TryCatch
+  pub fn iterate<F>(
+    &self,
+    scope: &PinScope<'_, '_>,
+    mut callback: F,
+  ) -> Option<()>
+  where
+    F: for<'a> FnMut(u32, Local<'a, Value>) -> ArrayIterationResult,
+  {
+    unsafe extern "C" fn trampoline<F>(
+      index: u32,
+      element: *const Value,
+      data: *mut c_void,
+    ) -> ArrayIterationResult
+    where
+      F: for<'a> FnMut(u32, Local<'a, Value>) -> ArrayIterationResult,
+    {
+      let callback = unsafe { &mut *data.cast::<F>() };
+      let element = unsafe { Local::from_raw_unchecked(element) };
+      callback(index, element)
+    }
+
+    let ok = unsafe {
+      v8__Array__Iterate(
+        self,
+        &*scope.get_current_context(),
+        trampoline::<F>,
+        std::ptr::from_mut(&mut callback).cast::<c_void>(),
+      )
+    };
+
+    if ok { Some(()) } else { None }
+  }
+}
+
+/// The result of an [`Array::iterate()`] callback, controlling whether
+/// iteration continues.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub enum ArrayIterationResult {
+  /// Terminate iteration immediately; an exception has been thrown.
+  Exception,
+  /// Terminate iteration early without throwing.
+  Break,
+  /// Continue with the next element.
+  Continue,
 }
 
 impl Map {

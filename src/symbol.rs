@@ -112,4 +112,6 @@ impl Symbol {
   well_known!(get_to_primitive, v8__Symbol__GetToPrimitive);
   well_known!(get_to_string_tag, v8__Symbol__GetToStringTag);
   well_known!(get_unscopables, v8__Symbol__GetUnscopables);
+  well_known!(get_dispose, v8__Symbol__GetDispose);
+  well_known!(get_async_dispose, v8__Symbol__GetAsyncDispose);
 }

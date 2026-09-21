@@ -916,6 +916,10 @@ bool v8__Value__IsWeakMap(const v8::Value& self) { return self.IsWeakMap(); }
 
 bool v8__Value__IsWeakSet(const v8::Value& self) { return self.IsWeakSet(); }
 
+bool v8__Value__IsWeakRef(const v8::Value& self) { return self.IsWeakRef(); }
+
+bool v8__Value__IsWasmNull(const v8::Value& self) { return self.IsWasmNull(); }
+
 bool v8__Value__IsArrayBuffer(const v8::Value& self) {
   return self.IsArrayBuffer();
 }
@@ -1097,6 +1101,8 @@ const v8::Primitive* v8__Undefined(v8::Isolate* isolate) {
 const v8::Boolean* v8__Boolean__New(v8::Isolate* isolate, bool value) {
   return local_to_ptr(v8::Boolean::New(isolate, value));
 }
+
+bool v8__Boolean__Value(const v8::Boolean& self) { return self.Value(); }
 
 int v8__FixedArray__Length(const v8::FixedArray& self) { return self.Length(); }
 
@@ -1452,6 +1458,15 @@ bool v8__String__ContainsOnlyOneByte(const v8::String& self) {
   return self.ContainsOnlyOneByte();
 }
 
+bool v8__String__StringEquals(const v8::String& self, const v8::String* that) {
+  return self.StringEquals(ptr_to_local(that));
+}
+
+const v8::String* v8__String__InternalizeString(v8::String& self,
+                                                v8::Isolate* isolate) {
+  return local_to_ptr(ptr_to_local(&self)->InternalizeString(isolate));
+}
+
 void v8__String__ValueView__CONSTRUCT(uninit_t<v8::String::ValueView>* buf,
                                       v8::Isolate* isolate,
                                       const v8::String& string) {
@@ -1494,6 +1509,8 @@ V(Split)
 V(ToPrimitive)
 V(ToStringTag)
 V(Unscopables)
+V(Dispose)
+V(AsyncDispose)
 #undef V
 
 const v8::Value* v8__Symbol__Description(const v8::Symbol& self,
@@ -1658,6 +1675,12 @@ bool v8__Object__IsApiWrapper(const v8::Object& self) {
 
 const v8::Value* v8__Object__GetPrototype(const v8::Object& self) {
   return local_to_ptr(ptr_to_local(&self)->GetPrototypeV2());
+}
+
+const v8::Object* v8__Object__FindInstanceInPrototypeChain(
+    const v8::Object& self, const v8::FunctionTemplate& tmpl) {
+  return local_to_ptr(
+      ptr_to_local(&self)->FindInstanceInPrototypeChain(ptr_to_local(&tmpl)));
 }
 
 MaybeBool v8__Object__Set(const v8::Object& self, const v8::Context& context,
@@ -1958,6 +1981,35 @@ const v8::Array* v8__Array__New_with_elements(v8::Isolate* isolate,
 
 uint32_t v8__Array__Length(const v8::Array& self) { return self.Length(); }
 
+// Trampoline that adapts V8's `Local<Value>`-taking iteration callback to a
+// plain pointer-based callback that can be implemented in Rust.
+namespace {
+struct ArrayIterateCallbackData {
+  v8::Array::CallbackResult (*callback)(uint32_t index,
+                                        const v8::Value* element, void* data);
+  void* data;
+};
+
+v8::Array::CallbackResult array_iterate_trampoline(uint32_t index,
+                                                   v8::Local<v8::Value> element,
+                                                   void* data) {
+  auto* wrapped = static_cast<ArrayIterateCallbackData*>(data);
+  return wrapped->callback(index, local_to_ptr(element), wrapped->data);
+}
+}  // namespace
+
+// Returns false if iteration was terminated by an exception, true otherwise.
+bool v8__Array__Iterate(
+    const v8::Array& self, const v8::Context& context,
+    v8::Array::CallbackResult (*callback)(uint32_t index,
+                                          const v8::Value* element, void* data),
+    void* callback_data) {
+  ArrayIterateCallbackData wrapped{callback, callback_data};
+  return ptr_to_local(&self)
+      ->Iterate(ptr_to_local(&context), array_iterate_trampoline, &wrapped)
+      .IsJust();
+}
+
 const v8::Date* v8__Date__New(const v8::Context& context, double time) {
   // v8::Date::New() is kind of weird in that it returns a v8::Value,
   // not a v8::Date, even though the object is always a Date object.
@@ -1973,7 +2025,31 @@ const v8::Date* v8__Date__New(const v8::Context& context, double time) {
   return maybe_local_to_ptr(maybe_date);
 }
 
+const v8::Date* v8__Date__Parse(const v8::Context& context,
+                                const v8::String& date_string) {
+  // Like v8::Date::New(), v8::Date::Parse() returns a v8::Value rather than
+  // a v8::Date, even though the resulting object is always a Date object.
+  v8::MaybeLocal<v8::Date> maybe_date;
+
+  v8::Local<v8::Value> value;
+  if (v8::Date::Parse(ptr_to_local(&context), ptr_to_local(&date_string))
+          .ToLocal(&value)) {
+    assert(value->IsDate());
+    maybe_date = value.As<v8::Date>();
+  }
+
+  return maybe_local_to_ptr(maybe_date);
+}
+
 double v8__Date__ValueOf(const v8::Date& self) { return self.ValueOf(); }
+
+const v8::String* v8__Date__ToISOString(const v8::Date& self) {
+  return local_to_ptr(self.ToISOString());
+}
+
+const v8::String* v8__Date__ToUTCString(const v8::Date& self) {
+  return local_to_ptr(self.ToUTCString());
+}
 
 const v8::External* v8__External__New(v8::Isolate* isolate, void* value) {
   return local_to_ptr(
@@ -2266,14 +2342,15 @@ uint32_t v8__Context__GetNumberOfEmbedderDataFields(const v8::Context& self) {
   return ptr_to_local(&self)->GetNumberOfEmbedderDataFields();
 }
 
-void* v8__Context__GetAlignedPointerFromEmbedderData(const v8::Context& self,
-                                                     int index) {
-  return ptr_to_local(&self)->GetAlignedPointerFromEmbedderData(index);
+void* v8__Context__GetAlignedPointerFromEmbedderData(
+    const v8::Context& self, int index, v8::EmbedderDataTypeTag tag) {
+  return ptr_to_local(&self)->GetAlignedPointerFromEmbedderData(index, tag);
 }
 
 void v8__Context__SetAlignedPointerInEmbedderData(v8::Context& self, int index,
-                                                  void* value) {
-  ptr_to_local(&self)->SetAlignedPointerInEmbedderData(index, value);
+                                                  void* value,
+                                                  v8::EmbedderDataTypeTag tag) {
+  ptr_to_local(&self)->SetAlignedPointerInEmbedderData(index, value, tag);
 }
 
 const v8::Value* v8__Context__GetEmbedderData(const v8::Context& self,
@@ -2709,6 +2786,14 @@ const v8::Object* v8__RegExp__Exec(v8::RegExp& self, const v8::Context& context,
                                    const v8::String& subject) {
   return maybe_local_to_ptr(
       self.Exec(ptr_to_local(&context), ptr_to_local(&subject)));
+}
+
+const v8::RegExp* v8__RegExp__NewWithBacktrackLimit(const v8::Context& context,
+                                                    const v8::String& pattern,
+                                                    v8::RegExp::Flags flags,
+                                                    uint32_t backtrack_limit) {
+  return maybe_local_to_ptr(v8::RegExp::NewWithBacktrackLimit(
+      ptr_to_local(&context), ptr_to_local(&pattern), flags, backtrack_limit));
 }
 
 const v8::String* v8__RegExp__GetSource(const v8::RegExp& self) {

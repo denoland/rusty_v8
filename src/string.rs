@@ -196,6 +196,12 @@ unsafe extern "C" {
   #[allow(dead_code)]
   fn v8__String__IsOneByte(this: *const String) -> bool;
   fn v8__String__ContainsOnlyOneByte(this: *const String) -> bool;
+  fn v8__String__StringEquals(this: *const String, that: *const String)
+  -> bool;
+  fn v8__String__InternalizeString(
+    this: *const String,
+    isolate: *mut RealIsolate,
+  ) -> *const String;
   fn v8__ExternalOneByteStringResource__data(
     this: *const ExternalOneByteStringResource,
   ) -> *const char;
@@ -1042,6 +1048,29 @@ impl String {
   #[inline(always)]
   pub fn contains_only_onebyte(&self) -> bool {
     unsafe { v8__String__ContainsOnlyOneByte(self) }
+  }
+
+  /// Returns true if the string is identical to `other`, comparing by
+  /// contents rather than by identity.
+  #[inline(always)]
+  pub fn string_equals(&self, other: Local<String>) -> bool {
+    unsafe { v8__String__StringEquals(self, &*other) }
+  }
+
+  /// Converts this string to an internalized string, which is guaranteed to
+  /// be unique for its contents within the isolate: two internalized strings
+  /// with equal contents are the same object.
+  #[inline(always)]
+  pub fn internalize_string<'s>(
+    &self,
+    scope: &PinScope<'s, '_, ()>,
+  ) -> Local<'s, String> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__String__InternalizeString(self, sd.get_isolate_ptr())
+      })
+    }
+    .unwrap()
   }
 
   /// Creates a copy of a [`crate::String`] in a [`std::string::String`].
