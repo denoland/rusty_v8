@@ -9204,6 +9204,18 @@ fn date_parse() {
   let source = v8::String::new(scope, "not a date at all").unwrap();
   let date = v8::Date::parse(scope, source).unwrap();
   assert!(date.value_of().is_nan());
+
+  // Stringifying a NaN date does not throw the way JS `toISOString()` does,
+  // and does not return an empty handle either, so the conversions below are
+  // infallible.
+  assert_eq!(
+    date.to_iso_string(scope).to_rust_string_lossy(scope),
+    "Invalid Date"
+  );
+  assert_eq!(
+    date.to_utc_string(scope).to_rust_string_lossy(scope),
+    "Invalid Date"
+  );
 }
 
 #[test]
@@ -14300,22 +14312,35 @@ fn test_regexp_backtrack_limit() {
   let context = v8::Context::new(&scope, Default::default());
   let scope = &mut v8::ContextScope::new(&mut scope, context);
 
-  // A pattern that backtracks catastrophically on a non-matching subject.
+  // A pattern that backtracks catastrophically, and a subject that does match
+  // it, but only after the leading run of "a"s has been explored exhaustively:
+  // the "!" forces roughly 2^20 backtracks before the engine gives up on
+  // position 0 and goes on to find "aaaab" further along.
+  //
+  // This makes the two cases below differ in their *result*, not just in how
+  // long they take: without a limit the subject matches, and with a limit far
+  // below the required number of backtracks it does not.
   let pattern = v8::String::new(scope, "(a*)*b").unwrap();
-  let subject =
-    v8::String::new(scope, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+  let subject_src = format!("{}!aaaab", "a".repeat(20));
+  let subject = v8::String::new(scope, &subject_src).unwrap();
 
-  // Without a limit the pattern still eventually reports a failed match.
+  // Without a limit, the engine spends all the backtracks it needs and finds
+  // the match.
   let regexp =
     v8::RegExp::new(scope, pattern, v8::RegExpCreationFlags::empty()).unwrap();
   assert_eq!(
     regexp.get_source(scope).to_rust_string_lossy(scope),
     "(a*)*b"
   );
+  let matched = regexp
+    .exec(scope, subject)
+    .is_some_and(|result| !result.is_null());
+  assert!(matched, "unlimited regexp should match {subject_src:?}");
 
-  // With a very low backtrack limit, the match fails immediately instead of
-  // exhausting the backtrack budget.
-  let regexp = v8::RegExp::new_with_backtrack_limit(
+  // With a very low backtrack limit the budget is exhausted long before the
+  // match is reached, and a match failure is returned instead. A failed match
+  // is reported as a null result rather than an empty handle.
+  let limited = v8::RegExp::new_with_backtrack_limit(
     scope,
     pattern,
     v8::RegExpCreationFlags::empty(),
@@ -14323,20 +14348,21 @@ fn test_regexp_backtrack_limit() {
   )
   .unwrap();
   assert_eq!(
-    regexp.get_source(scope).to_rust_string_lossy(scope),
+    limited.get_source(scope).to_rust_string_lossy(scope),
     "(a*)*b"
   );
-
-  // A failed match is reported as a null result rather than an empty handle.
-  let matched = regexp
+  let matched = limited
     .exec(scope, subject)
     .is_some_and(|result| !result.is_null());
-  assert!(!matched);
+  assert!(
+    !matched,
+    "backtrack limit should have forced a match failure"
+  );
 
-  // A subject that matches is still matched when within the limit.
-  let subject = v8::String::new(scope, "ab").unwrap();
-  let matched = regexp
-    .exec(scope, subject)
+  // A subject that matches without exceeding the limit is still matched.
+  let easy = v8::String::new(scope, "ab").unwrap();
+  let matched = limited
+    .exec(scope, easy)
     .is_some_and(|result| !result.is_null());
   assert!(matched);
 }
@@ -16605,6 +16631,45 @@ fn array_iterate() {
   });
   assert_eq!(result, Some(()));
   assert!(!called);
+}
+
+#[test]
+fn array_iterate_throws() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let array = eval(scope, "[10, 20, 30]").unwrap();
+  let array = v8::Local::<v8::Array>::try_from(array).unwrap();
+
+  v8::tc_scope!(let tc, scope);
+
+  // Allocate the exception up front: V8 permits the callback to allocate only
+  // if the iteration then terminates immediately, which returning `Exception`
+  // does, but keeping the allocation outside the callback avoids the question
+  // entirely.
+  let exception: v8::Local<v8::Value> =
+    v8::String::new(tc, "boom").unwrap().into();
+
+  // Reborrow as a shared reference so the scope can be both passed to
+  // iterate() and used from inside the callback.
+  let tc = &*tc;
+
+  let mut count = 0;
+  let result = array.iterate(tc, |_index, _element| {
+    count += 1;
+    tc.throw_exception(exception);
+    v8::ArrayIterationResult::Exception
+  });
+
+  // Terminating with `Exception` reports `None`, and the exception thrown by
+  // the callback is observable through the TryCatch, as the docs describe.
+  assert_eq!(result, None);
+  assert_eq!(count, 1);
+  assert!(tc.has_caught());
+  assert!(tc.exception().unwrap().strict_equals(exception));
 }
 
 #[test]

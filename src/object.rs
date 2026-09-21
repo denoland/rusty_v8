@@ -1349,6 +1349,8 @@ impl Array {
   ///   does not violate the above restrictions, which is difficult).
   /// - The element handle must not "escape", i.e. must not be assigned to any
   ///   other `Local`. Creating a `Global` from it is safe.
+  /// - It must not panic. The callback is invoked across an `extern "C"`
+  ///   boundary, so a panic aborts the process rather than unwinding.
   ///
   /// Returns `None` on exception; use a [`TryCatch`] to catch and handle the
   /// exception. When the callback returns [`ArrayIterationResult::Exception`],
@@ -1358,6 +1360,7 @@ impl Array {
   ///
   /// [`get_index()`]: Object::get_index
   /// [`TryCatch`]: crate::TryCatch
+  #[inline(always)]
   pub fn iterate<F>(
     &self,
     scope: &PinScope<'_, '_>,
@@ -1394,6 +1397,9 @@ impl Array {
 
 /// The result of an [`Array::iterate()`] callback, controlling whether
 /// iteration continues.
+///
+/// Mirrors `v8::Array::CallbackResult`; the variants are returned directly to
+/// V8, so their order must match (see the `static_assert` in `binding.cc`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub enum ArrayIterationResult {

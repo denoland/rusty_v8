@@ -1981,6 +1981,14 @@ const v8::Array* v8__Array__New_with_elements(v8::Isolate* isolate,
 
 uint32_t v8__Array__Length(const v8::Array& self) { return self.Length(); }
 
+// The Rust `ArrayIterationResult` enum is declared `#[repr(C)]` with its
+// variants in this order, and is returned directly from the Rust callback,
+// so the discriminants must keep matching V8's.
+static_assert(static_cast<int>(v8::Array::CallbackResult::kException) == 0 &&
+                  static_cast<int>(v8::Array::CallbackResult::kBreak) == 1 &&
+                  static_cast<int>(v8::Array::CallbackResult::kContinue) == 2,
+              "Array::CallbackResult discriminant mismatch");
+
 // Trampoline that adapts V8's `Local<Value>`-taking iteration callback to a
 // plain pointer-based callback that can be implemented in Rust.
 namespace {
@@ -2341,6 +2349,13 @@ void v8__Context__DetachGlobal(v8::Context& self) {
 uint32_t v8__Context__GetNumberOfEmbedderDataFields(const v8::Context& self) {
   return ptr_to_local(&self)->GetNumberOfEmbedderDataFields();
 }
+
+// Embedder data tags cross the FFI boundary as a bare `u16`, and Rust
+// hardcodes the default tag as `Context::EMBEDDER_DATA_TAG_DEFAULT = 0`.
+static_assert(sizeof(v8::EmbedderDataTypeTag) == sizeof(uint16_t),
+              "EmbedderDataTypeTag size mismatch");
+static_assert(v8::kEmbedderDataTypeTagDefault == 0,
+              "kEmbedderDataTypeTagDefault mismatch");
 
 void* v8__Context__GetAlignedPointerFromEmbedderData(
     const v8::Context& self, int index, v8::EmbedderDataTypeTag tag) {

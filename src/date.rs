@@ -57,6 +57,11 @@ impl Date {
   }
 
   /// Generates ISO string representation.
+  ///
+  /// Unlike JavaScript's `Date.prototype.toISOString`, this does not throw
+  /// for a Date whose [`value_of()`] is `NaN`; it returns `"Invalid Date"`.
+  ///
+  /// [`value_of()`]: Date::value_of
   #[inline(always)]
   pub fn to_iso_string<'s>(
     &self,
@@ -66,6 +71,10 @@ impl Date {
   }
 
   /// Generates UTC string representation.
+  ///
+  /// Returns `"Invalid Date"` for a Date whose [`value_of()`] is `NaN`.
+  ///
+  /// [`value_of()`]: Date::value_of
   #[inline(always)]
   pub fn to_utc_string<'s>(
     &self,

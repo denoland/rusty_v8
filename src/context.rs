@@ -103,6 +103,13 @@ impl Context {
 
   /// The tag used by the untagged embedder data accessors, matching V8's
   /// `kEmbedderDataTypeTagDefault`.
+  ///
+  /// Embedder data tags must be in the range `0..V8_EMBEDDER_DATA_TAG_COUNT`
+  /// (15 at the time of writing); see
+  /// [`set_aligned_pointer_in_embedder_data_with_tag`] for details.
+  ///
+  /// [`set_aligned_pointer_in_embedder_data_with_tag`]:
+  ///     Context::set_aligned_pointer_in_embedder_data_with_tag
   pub const EMBEDDER_DATA_TAG_DEFAULT: u16 = 0;
 
   /// Creates a new context.
@@ -434,13 +441,24 @@ impl Context {
   /// index, growing the data as needed. The `tag` distinguishes pointers of
   /// different types stored in embedder data; the same tag must be passed to
   /// [`get_aligned_pointer_from_embedder_data_with_tag`] when reading the
-  /// value back.
+  /// value back. Reading with a different tag does not return the stored
+  /// pointer, and does not report an error either — it is not a panic or a
+  /// null return, so the tags used by a given slot must be kept in sync by
+  /// the caller.
+  ///
+  /// `tag` must be in the range `0..V8_EMBEDDER_DATA_TAG_COUNT` (15 at the
+  /// time of writing); V8 uses it to derive a sandbox external pointer tag,
+  /// and values outside that range are not valid. Use
+  /// [`EMBEDDER_DATA_TAG_DEFAULT`] when no distinction between pointer types
+  /// is needed.
   ///
   /// # Safety
-  /// The pointer must be 2-byte aligned.
+  /// The pointer must be 2-byte aligned, and `tag` must be in the range
+  /// described above.
   ///
   /// [`get_aligned_pointer_from_embedder_data_with_tag`]:
   ///     Context::get_aligned_pointer_from_embedder_data_with_tag
+  /// [`EMBEDDER_DATA_TAG_DEFAULT`]: Context::EMBEDDER_DATA_TAG_DEFAULT
   #[inline(always)]
   pub unsafe fn set_aligned_pointer_in_embedder_data_with_tag(
     &self,
@@ -481,7 +499,13 @@ impl Context {
   /// Gets a 2-byte-aligned native pointer from the embedder data with the
   /// given index, which must have been set by a previous call to
   /// [`set_aligned_pointer_in_embedder_data_with_tag`] with the same index
-  /// and the same `tag`.
+  /// and the same `tag`. Passing a tag other than the one the slot was
+  /// written with yields an unspecified pointer rather than an error, so the
+  /// returned pointer must not be dereferenced unless the tags match.
+  ///
+  /// `tag` must be in the range `0..V8_EMBEDDER_DATA_TAG_COUNT` (15 at the
+  /// time of writing); see
+  /// [`set_aligned_pointer_in_embedder_data_with_tag`].
   ///
   /// [`set_aligned_pointer_in_embedder_data_with_tag`]:
   ///     Context::set_aligned_pointer_in_embedder_data_with_tag
