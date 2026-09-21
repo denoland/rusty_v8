@@ -1,9 +1,12 @@
 // Copyright 2019-2021 the Deno authors. All rights reserved. MIT license.
 
 use std::ffi::c_void;
+use std::ptr::NonNull;
 
 use crate::BackingStore;
 use crate::BackingStoreDeleterCallback;
+use crate::BackingStoreInitializationMode;
+use crate::BackingStoreOnFailureMode;
 use crate::Local;
 use crate::SharedArrayBuffer;
 use crate::isolate::RealIsolate;
@@ -30,6 +33,14 @@ unsafe extern "C" {
     isolate: *mut RealIsolate,
     byte_length: usize,
   ) -> *mut BackingStore;
+  fn v8__SharedArrayBuffer__NewBackingStore__with_mode(
+    isolate: *mut RealIsolate,
+    byte_length: usize,
+    initialization_mode: BackingStoreInitializationMode,
+    on_failure: BackingStoreOnFailureMode,
+  ) -> *mut BackingStore;
+  fn v8__SharedArrayBuffer__Data(this: *const SharedArrayBuffer)
+  -> *mut c_void;
   fn v8__SharedArrayBuffer__NewBackingStore__with_data(
     data: *mut c_void,
     byte_length: usize,
@@ -80,6 +91,14 @@ impl SharedArrayBuffer {
     unsafe { v8__SharedArrayBuffer__ByteLength(self) }
   }
 
+  /// More efficient shortcut for `get_backing_store().data()`.
+  /// The returned pointer is valid as long as the SharedArrayBuffer is alive.
+  #[inline(always)]
+  pub fn data(&self) -> Option<NonNull<c_void>> {
+    let raw_ptr = unsafe { v8__SharedArrayBuffer__Data(self) };
+    NonNull::new(raw_ptr)
+  }
+
   /// Get a shared pointer to the backing store of this array buffer. This
   /// pointer coordinates the lifetime management of the internal storage
   /// with any live ArrayBuffers on the heap, even across isolates. The embedder
@@ -108,6 +127,87 @@ impl SharedArrayBuffer {
           byte_length,
         ),
       )
+    }
+  }
+
+  /// Returns a new zero-initialized standalone BackingStore that is allocated
+  /// using the array buffer allocator of the isolate, with control over what
+  /// happens when the allocation fails.
+  ///
+  /// If the allocator returns null, then the function may cause GCs in the
+  /// given isolate and re-try the allocation.
+  ///
+  /// If `on_failure` is [`BackingStoreOnFailureMode::OutOfMemory`] and GCs do
+  /// not help, then the process crashes with an out-of-memory error. If it is
+  /// [`BackingStoreOnFailureMode::ReturnNull`], `None` is returned instead.
+  #[inline(always)]
+  pub fn new_backing_store_with_mode(
+    scope: &PinScope<'_, '_>,
+    byte_length: usize,
+    on_failure: BackingStoreOnFailureMode,
+  ) -> Option<UniqueRef<BackingStore>> {
+    unsafe {
+      Self::new_backing_store_with_modes(
+        scope,
+        byte_length,
+        BackingStoreInitializationMode::ZeroInitialized,
+        on_failure,
+      )
+    }
+  }
+
+  /// Like [`SharedArrayBuffer::new_backing_store_with_mode`], but the
+  /// allocated memory is left uninitialized, which is faster but leaves
+  /// whatever the allocator handed out visible in the backing store.
+  ///
+  /// # Safety
+  ///
+  /// The returned backing store contains uninitialized memory, which its safe
+  /// `Deref<Target = [Cell<u8>]>` would otherwise let anyone read. The caller
+  /// must overwrite every byte before the backing store is read, either from
+  /// Rust or through a SharedArrayBuffer handed to JavaScript. Reading it
+  /// beforehand is undefined behaviour and may disclose unrelated process
+  /// memory.
+  #[inline(always)]
+  pub unsafe fn new_backing_store_uninitialized(
+    scope: &PinScope<'_, '_>,
+    byte_length: usize,
+    on_failure: BackingStoreOnFailureMode,
+  ) -> Option<UniqueRef<BackingStore>> {
+    unsafe {
+      Self::new_backing_store_with_modes(
+        scope,
+        byte_length,
+        BackingStoreInitializationMode::Uninitialized,
+        on_failure,
+      )
+    }
+  }
+
+  /// # Safety
+  ///
+  /// See [`SharedArrayBuffer::new_backing_store_uninitialized`]: passing
+  /// [`BackingStoreInitializationMode::Uninitialized`] yields a backing store
+  /// whose contents must be fully written before they are read or exposed.
+  #[inline(always)]
+  unsafe fn new_backing_store_with_modes(
+    scope: &PinScope<'_, '_>,
+    byte_length: usize,
+    initialization_mode: BackingStoreInitializationMode,
+    on_failure: BackingStoreOnFailureMode,
+  ) -> Option<UniqueRef<BackingStore>> {
+    let ptr = unsafe {
+      v8__SharedArrayBuffer__NewBackingStore__with_mode(
+        scope.get_isolate_ptr(),
+        byte_length,
+        initialization_mode,
+        on_failure,
+      )
+    };
+    if ptr.is_null() {
+      None
+    } else {
+      Some(unsafe { UniqueRef::from_raw(ptr) })
     }
   }
 

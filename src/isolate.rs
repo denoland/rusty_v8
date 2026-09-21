@@ -87,6 +87,19 @@ pub enum MicrotasksPolicy {
   Auto = 2,
 }
 
+/// Signal for dependants of contexts. Useful for
+/// [`Isolate::context_disposed_notification`] to implement different
+/// strategies.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ContextDependants {
+  /// Context has no dependants. These are usually top-level contexts.
+  NoDependants,
+  /// Context has some dependants, i.e., it may depend on other contexts. This
+  /// is usually the case for inner contexts.
+  SomeDependants,
+}
+
 /// Memory pressure level for the MemoryPressureNotification.
 /// None hints V8 that there is no memory pressure.
 /// Moderate hints V8 to speed up incremental garbage collection at the cost
@@ -695,6 +708,10 @@ unsafe extern "C" {
   fn v8__Isolate__MemoryPressureNotification(this: *mut RealIsolate, level: u8);
   fn v8__Isolate__ClearKeptObjects(isolate: *mut RealIsolate);
   fn v8__Isolate__LowMemoryNotification(isolate: *mut RealIsolate);
+  fn v8__Isolate__ContextDisposedNotification(
+    isolate: *mut RealIsolate,
+    dependants: ContextDependants,
+  );
   fn v8__Isolate__SetIdle(isolate: *mut RealIsolate, is_idle: bool);
   fn v8__CpuProfiler__CollectSample(
     isolate: *mut RealIsolate,
@@ -1445,6 +1462,21 @@ impl Isolate {
   pub fn memory_pressure_notification(&mut self, level: MemoryPressureLevel) {
     unsafe {
       v8__Isolate__MemoryPressureNotification(self.as_real_ptr(), level as u8)
+    }
+  }
+
+  /// Optional notification that a context has been disposed. V8 uses these
+  /// notifications to guide heuristics on e.g. GC or compilers.
+  ///
+  /// `dependants` signals whether the disposed context possibly had any
+  /// dependants.
+  #[inline(always)]
+  pub fn context_disposed_notification(
+    &mut self,
+    dependants: ContextDependants,
+  ) {
+    unsafe {
+      v8__Isolate__ContextDisposedNotification(self.as_real_ptr(), dependants);
     }
   }
 

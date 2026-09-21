@@ -10,7 +10,9 @@ use std::slice;
 use crate::ArrayBuffer;
 use crate::DataView;
 use crate::Isolate;
+use crate::IsolateGroup;
 use crate::Local;
+use crate::SharedArrayBuffer;
 use crate::Value;
 use crate::isolate::RealIsolate;
 use crate::scope::PinScope;
@@ -25,10 +27,18 @@ use crate::support::long;
 
 unsafe extern "C" {
   fn v8__ArrayBuffer__Allocator__NewDefaultAllocator() -> *mut Allocator;
+  fn v8__ArrayBuffer__Allocator__NewDefaultAllocator__with_group(
+    group: *const IsolateGroup,
+  ) -> *mut Allocator;
   fn v8__ArrayBuffer__Allocator__DELETE(this: *mut Allocator);
   fn v8__ArrayBuffer__New__with_byte_length(
     isolate: *mut RealIsolate,
     byte_length: usize,
+  ) -> *const ArrayBuffer;
+  fn v8__ArrayBuffer__MaybeNew(
+    isolate: *mut RealIsolate,
+    byte_length: usize,
+    initialization_mode: BackingStoreInitializationMode,
   ) -> *const ArrayBuffer;
   fn v8__ArrayBuffer__New__with_backing_store(
     isolate: *mut RealIsolate,
@@ -42,6 +52,10 @@ unsafe extern "C" {
   fn v8__ArrayBuffer__Data(this: *const ArrayBuffer) -> *mut c_void;
   fn v8__ArrayBuffer__IsDetachable(this: *const ArrayBuffer) -> bool;
   fn v8__ArrayBuffer__WasDetached(this: *const ArrayBuffer) -> bool;
+  fn v8__ArrayBuffer__IsResizableByUserJavaScript(
+    this: *const ArrayBuffer,
+  ) -> bool;
+  fn v8__ArrayBuffer__IsImmutable(this: *const ArrayBuffer) -> bool;
   fn v8__ArrayBuffer__ByteLength(this: *const ArrayBuffer) -> usize;
   fn v8__ArrayBuffer__GetBackingStore(
     this: *const ArrayBuffer,
@@ -49,6 +63,16 @@ unsafe extern "C" {
   fn v8__ArrayBuffer__NewBackingStore__with_byte_length(
     isolate: *mut RealIsolate,
     byte_length: usize,
+  ) -> *mut BackingStore;
+  fn v8__ArrayBuffer__NewBackingStore__with_mode(
+    isolate: *mut RealIsolate,
+    byte_length: usize,
+    initialization_mode: BackingStoreInitializationMode,
+    on_failure: BackingStoreOnFailureMode,
+  ) -> *mut BackingStore;
+  fn v8__ArrayBuffer__NewResizableBackingStore(
+    byte_length: usize,
+    max_byte_length: usize,
   ) -> *mut BackingStore;
   fn v8__ArrayBuffer__NewBackingStore__with_data(
     data: *mut c_void,
@@ -58,6 +82,7 @@ unsafe extern "C" {
   ) -> *mut BackingStore;
   fn v8__BackingStore__Data(this: *const BackingStore) -> *mut c_void;
   fn v8__BackingStore__ByteLength(this: *const BackingStore) -> usize;
+  fn v8__BackingStore__MaxByteLength(this: *const BackingStore) -> usize;
   fn v8__BackingStore__IsShared(this: *const BackingStore) -> bool;
   fn v8__BackingStore__IsResizableByUserJavaScript(
     this: *const BackingStore,
@@ -66,6 +91,11 @@ unsafe extern "C" {
 
   fn v8__DataView__New(
     arraybuffer: *const ArrayBuffer,
+    byte_offset: usize,
+    length: usize,
+  ) -> *const DataView;
+  fn v8__DataView__New__with_shared_buffer(
+    shared_array_buffer: *const SharedArrayBuffer,
     byte_offset: usize,
     length: usize,
   ) -> *const DataView;
@@ -110,6 +140,35 @@ unsafe extern "C" {
     handle: *const c_void,
     vtable: *const RustAllocatorVtable<c_void>,
   ) -> *mut Allocator;
+}
+
+/// Whether the memory of a newly allocated backing store is zero-initialized
+/// or left uninitialized.
+///
+/// Requesting uninitialized memory is faster, but the embedder must then make
+/// sure the contents are never observed before they are written. That
+/// obligation cannot be checked, so the constructors that leave memory
+/// uninitialized — [`ArrayBuffer::maybe_new_uninitialized`],
+/// [`ArrayBuffer::new_backing_store_uninitialized`] and
+/// [`SharedArrayBuffer::new_backing_store_uninitialized`] — are `unsafe`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum BackingStoreInitializationMode {
+  #[default]
+  ZeroInitialized,
+  Uninitialized,
+}
+
+/// What a backing store allocation should do when it cannot satisfy the
+/// request, even after garbage collection.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum BackingStoreOnFailureMode {
+  /// Return no backing store, letting the caller handle the failure.
+  ReturnNull,
+  /// Crash the process with an out-of-memory error.
+  #[default]
+  OutOfMemory,
 }
 
 /// A thread-safe allocator that V8 uses to allocate |ArrayBuffer|'s memory.
@@ -171,6 +230,30 @@ impl Shared for Allocator {
 pub fn new_default_allocator() -> UniqueRef<Allocator> {
   unsafe {
     UniqueRef::from_raw(v8__ArrayBuffer__Allocator__NewDefaultAllocator())
+  }
+}
+
+/// Convenience allocator scoped to an isolate group.
+///
+/// When the sandbox is enabled, this allocator allocates its backing memory
+/// inside the sandbox belonging to `group`; otherwise it relies on
+/// malloc/free.
+///
+/// V8 only declares this overload when it is built with pointer compression in
+/// multi-cage mode, the same configuration that
+/// [`IsolateGroup::can_create_new_groups`] reports on. `None` is returned when
+/// the V8 this crate was linked against was built differently.
+#[inline(always)]
+pub fn new_default_allocator_for_group(
+  group: &IsolateGroup,
+) -> Option<UniqueRef<Allocator>> {
+  let ptr = unsafe {
+    v8__ArrayBuffer__Allocator__NewDefaultAllocator__with_group(group)
+  };
+  if ptr.is_null() {
+    None
+  } else {
+    Some(unsafe { UniqueRef::from_raw(ptr) })
   }
 }
 
@@ -380,6 +463,15 @@ impl BackingStore {
     unsafe { v8__BackingStore__ByteLength(self) }
   }
 
+  /// The maximum length (in bytes) that this backing store can grow to.
+  ///
+  /// For a non-resizable backing store this is the same as
+  /// [`BackingStore::byte_length`].
+  #[inline(always)]
+  pub fn max_byte_length(&self) -> usize {
+    unsafe { v8__BackingStore__MaxByteLength(self) }
+  }
+
   /// Indicates whether the backing store was created for an ArrayBuffer or
   /// a SharedArrayBuffer.
   #[inline(always)]
@@ -446,6 +538,14 @@ impl Shared for BackingStore {
 }
 
 impl ArrayBuffer {
+  /// The maximum length (in bytes) of an `ArrayBuffer`, i.e. the largest value
+  /// that can be passed to [`ArrayBuffer::new`].
+  ///
+  /// This is V8's `ArrayBuffer::kMaxByteLength`, which V8 also exposes as
+  /// `TypedArray::kMaxByteLength`.
+  pub const MAX_BYTE_LENGTH: usize =
+    crate::binding::v8__TypedArray__kMaxByteLength;
+
   /// Create a new ArrayBuffer. Allocate |byte_length| bytes.
   /// Allocated memory will be owned by a created ArrayBuffer and
   /// will be deallocated when it is garbage-collected,
@@ -482,10 +582,91 @@ impl ArrayBuffer {
     .unwrap()
   }
 
+  /// Create a new ArrayBuffer, allocating |byte_length| zero-initialized
+  /// bytes.
+  ///
+  /// Unlike [`ArrayBuffer::new`], `None` is returned if the allocation fails
+  /// rather than crashing the process.
+  #[inline(always)]
+  pub fn maybe_new<'s>(
+    scope: &PinScope<'s, '_, ()>,
+    byte_length: usize,
+  ) -> Option<Local<'s, ArrayBuffer>> {
+    unsafe {
+      Self::maybe_new_with_mode(
+        scope,
+        byte_length,
+        BackingStoreInitializationMode::ZeroInitialized,
+      )
+    }
+  }
+
+  /// Like [`ArrayBuffer::maybe_new`], but the newly allocated bytes are left
+  /// uninitialized, which is faster but leaves whatever the allocator handed
+  /// out visible in the buffer.
+  ///
+  /// # Safety
+  ///
+  /// The contents of the returned ArrayBuffer are uninitialized memory. The
+  /// caller must overwrite every byte before the buffer is read, either from
+  /// Rust or by JavaScript; in particular the buffer must not be made
+  /// reachable from script until it has been fully initialized. Reading it
+  /// beforehand is undefined behaviour and may disclose unrelated process
+  /// memory.
+  #[inline(always)]
+  pub unsafe fn maybe_new_uninitialized<'s>(
+    scope: &PinScope<'s, '_, ()>,
+    byte_length: usize,
+  ) -> Option<Local<'s, ArrayBuffer>> {
+    unsafe {
+      Self::maybe_new_with_mode(
+        scope,
+        byte_length,
+        BackingStoreInitializationMode::Uninitialized,
+      )
+    }
+  }
+
+  /// # Safety
+  ///
+  /// See [`ArrayBuffer::maybe_new_uninitialized`]: passing
+  /// [`BackingStoreInitializationMode::Uninitialized`] yields an ArrayBuffer
+  /// whose contents must be fully written before they are read or exposed.
+  #[inline(always)]
+  unsafe fn maybe_new_with_mode<'s>(
+    scope: &PinScope<'s, '_, ()>,
+    byte_length: usize,
+    initialization_mode: BackingStoreInitializationMode,
+  ) -> Option<Local<'s, ArrayBuffer>> {
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__ArrayBuffer__MaybeNew(
+          sd.get_isolate_ptr(),
+          byte_length,
+          initialization_mode,
+        )
+      })
+    }
+  }
+
   /// Data length in bytes.
   #[inline(always)]
   pub fn byte_length(&self) -> usize {
     unsafe { v8__ArrayBuffer__ByteLength(self) }
+  }
+
+  /// Returns true if this ArrayBuffer may be resized by user JavaScript code,
+  /// i.e. whether it is a resizable ArrayBuffer. Equivalent to
+  /// `get_backing_store().is_resizable_by_user_javascript()`.
+  #[inline(always)]
+  pub fn is_resizable_by_user_javascript(&self) -> bool {
+    unsafe { v8__ArrayBuffer__IsResizableByUserJavaScript(self) }
+  }
+
+  /// Returns true if this ArrayBuffer is immutable.
+  #[inline(always)]
+  pub fn is_immutable(&self) -> bool {
+    unsafe { v8__ArrayBuffer__IsImmutable(self) }
   }
 
   /// Returns true if this ArrayBuffer may be detached.
@@ -560,6 +741,109 @@ impl ArrayBuffer {
       UniqueRef::from_raw(v8__ArrayBuffer__NewBackingStore__with_byte_length(
         (*scope).as_real_ptr(),
         byte_length,
+      ))
+    }
+  }
+
+  /// Returns a new zero-initialized standalone BackingStore that is allocated
+  /// using the array buffer allocator of the isolate, with control over what
+  /// happens when the allocation fails.
+  ///
+  /// If the allocator returns null, then the function may cause GCs in the
+  /// given isolate and re-try the allocation.
+  ///
+  /// If `on_failure` is [`BackingStoreOnFailureMode::OutOfMemory`] and GCs do
+  /// not help, then the process crashes with an out-of-memory error. If it is
+  /// [`BackingStoreOnFailureMode::ReturnNull`], `None` is returned instead.
+  #[inline(always)]
+  pub fn new_backing_store_with_mode(
+    isolate: &mut Isolate,
+    byte_length: usize,
+    on_failure: BackingStoreOnFailureMode,
+  ) -> Option<UniqueRef<BackingStore>> {
+    unsafe {
+      Self::new_backing_store_with_modes(
+        isolate,
+        byte_length,
+        BackingStoreInitializationMode::ZeroInitialized,
+        on_failure,
+      )
+    }
+  }
+
+  /// Like [`ArrayBuffer::new_backing_store_with_mode`], but the allocated
+  /// memory is left uninitialized, which is faster but leaves whatever the
+  /// allocator handed out visible in the backing store.
+  ///
+  /// # Safety
+  ///
+  /// The returned backing store contains uninitialized memory, which its safe
+  /// `Deref<Target = [Cell<u8>]>` would otherwise let anyone read. The caller
+  /// must overwrite every byte before the backing store is read, either from
+  /// Rust or through an ArrayBuffer handed to JavaScript. Reading it
+  /// beforehand is undefined behaviour and may disclose unrelated process
+  /// memory.
+  #[inline(always)]
+  pub unsafe fn new_backing_store_uninitialized(
+    isolate: &mut Isolate,
+    byte_length: usize,
+    on_failure: BackingStoreOnFailureMode,
+  ) -> Option<UniqueRef<BackingStore>> {
+    unsafe {
+      Self::new_backing_store_with_modes(
+        isolate,
+        byte_length,
+        BackingStoreInitializationMode::Uninitialized,
+        on_failure,
+      )
+    }
+  }
+
+  /// # Safety
+  ///
+  /// See [`ArrayBuffer::new_backing_store_uninitialized`]: passing
+  /// [`BackingStoreInitializationMode::Uninitialized`] yields a backing store
+  /// whose contents must be fully written before they are read or exposed.
+  #[inline(always)]
+  unsafe fn new_backing_store_with_modes(
+    isolate: &mut Isolate,
+    byte_length: usize,
+    initialization_mode: BackingStoreInitializationMode,
+    on_failure: BackingStoreOnFailureMode,
+  ) -> Option<UniqueRef<BackingStore>> {
+    let ptr = unsafe {
+      v8__ArrayBuffer__NewBackingStore__with_mode(
+        isolate.as_real_ptr(),
+        byte_length,
+        initialization_mode,
+        on_failure,
+      )
+    };
+    if ptr.is_null() {
+      None
+    } else {
+      Some(unsafe { UniqueRef::from_raw(ptr) })
+    }
+  }
+
+  /// Returns a new resizable standalone BackingStore that is allocated using
+  /// the array buffer allocator of the isolate. The result can be later passed
+  /// to [`ArrayBuffer::with_backing_store`].
+  ///
+  /// `byte_length` must be `<= max_byte_length`.
+  ///
+  /// This function is usable without an isolate. Unlike the isolate-scoped
+  /// constructors, GCs cannot be triggered and there are no retries;
+  /// allocation failure crashes the process with an out-of-memory error.
+  #[inline(always)]
+  pub fn new_resizable_backing_store(
+    byte_length: usize,
+    max_byte_length: usize,
+  ) -> UniqueRef<BackingStore> {
+    unsafe {
+      UniqueRef::from_raw(v8__ArrayBuffer__NewResizableBackingStore(
+        byte_length,
+        max_byte_length,
       ))
     }
   }
@@ -692,6 +976,26 @@ impl DataView {
     unsafe {
       scope
         .cast_local(|_| v8__DataView__New(&*arraybuffer, byte_offset, length))
+    }
+    .unwrap()
+  }
+
+  /// Returns a new DataView over a SharedArrayBuffer.
+  #[inline(always)]
+  pub fn new_with_shared_buffer<'s>(
+    scope: &PinScope<'s, '_, ()>,
+    shared_array_buffer: Local<'s, SharedArrayBuffer>,
+    byte_offset: usize,
+    length: usize,
+  ) -> Local<'s, DataView> {
+    unsafe {
+      scope.cast_local(|_| {
+        v8__DataView__New__with_shared_buffer(
+          &*shared_array_buffer,
+          byte_offset,
+          length,
+        )
+      })
     }
     .unwrap()
   }
