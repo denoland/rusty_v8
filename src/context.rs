@@ -104,13 +104,16 @@ impl Context {
   /// The tag used by the untagged embedder data accessors, matching V8's
   /// `kEmbedderDataTypeTagDefault`.
   ///
-  /// Embedder data tags must be in the range `0..V8_EMBEDDER_DATA_TAG_COUNT`
-  /// (15 at the time of writing); see
-  /// [`set_aligned_pointer_in_embedder_data_with_tag`] for details.
-  ///
   /// [`set_aligned_pointer_in_embedder_data_with_tag`]:
   ///     Context::set_aligned_pointer_in_embedder_data_with_tag
   pub const EMBEDDER_DATA_TAG_DEFAULT: u16 = 0;
+
+  /// The number of distinct embedder data tags V8 supports, matching V8's
+  /// `V8_EMBEDDER_DATA_TAG_COUNT`. Valid tags are
+  /// `0..EMBEDDER_DATA_TAG_COUNT`; V8 aborts on anything larger, so the
+  /// tagged accessors panic instead. A `static_assert` in `binding.cc` keeps
+  /// this in sync with V8.
+  pub const EMBEDDER_DATA_TAG_COUNT: u16 = 15;
 
   /// Creates a new context.
   #[inline(always)]
@@ -437,28 +440,43 @@ impl Context {
     }
   }
 
+  #[inline(always)]
+  fn assert_valid_embedder_data_tag(tag: u16) {
+    assert!(
+      tag < Self::EMBEDDER_DATA_TAG_COUNT,
+      "embedder data tag {tag} is out of range; must be less than {}",
+      Self::EMBEDDER_DATA_TAG_COUNT
+    );
+  }
+
   /// Sets a 2-byte-aligned native pointer in the embedder data with the given
   /// index, growing the data as needed. The `tag` distinguishes pointers of
   /// different types stored in embedder data; the same tag must be passed to
   /// [`get_aligned_pointer_from_embedder_data_with_tag`] when reading the
-  /// value back. Reading with a different tag does not return the stored
-  /// pointer, and does not report an error either — it is not a panic or a
-  /// null return, so the tags used by a given slot must be kept in sync by
-  /// the caller.
+  /// value back.
   ///
-  /// `tag` must be in the range `0..V8_EMBEDDER_DATA_TAG_COUNT` (15 at the
-  /// time of writing); V8 uses it to derive a sandbox external pointer tag,
-  /// and values outside that range are not valid. Use
-  /// [`EMBEDDER_DATA_TAG_DEFAULT`] when no distinction between pointer types
-  /// is needed.
+  /// Reading a slot with a tag other than the one it was written with does not
+  /// report an error, and what it does return depends on the build: with the
+  /// V8 sandbox enabled the mismatch is detected and the read returns null,
+  /// while with the sandbox disabled the tag is ignored entirely and the
+  /// stored pointer is returned regardless. Neither is a substitute for the
+  /// caller keeping the tags of a slot consistent.
+  ///
+  /// Use [`EMBEDDER_DATA_TAG_DEFAULT`] when no distinction between pointer
+  /// types is needed.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `tag` is not less than [`EMBEDDER_DATA_TAG_COUNT`]. V8 aborts
+  /// the process for out-of-range tags, so this is checked here instead.
   ///
   /// # Safety
-  /// The pointer must be 2-byte aligned, and `tag` must be in the range
-  /// described above.
+  /// The pointer must be 2-byte aligned.
   ///
   /// [`get_aligned_pointer_from_embedder_data_with_tag`]:
   ///     Context::get_aligned_pointer_from_embedder_data_with_tag
   /// [`EMBEDDER_DATA_TAG_DEFAULT`]: Context::EMBEDDER_DATA_TAG_DEFAULT
+  /// [`EMBEDDER_DATA_TAG_COUNT`]: Context::EMBEDDER_DATA_TAG_COUNT
   #[inline(always)]
   pub unsafe fn set_aligned_pointer_in_embedder_data_with_tag(
     &self,
@@ -466,6 +484,8 @@ impl Context {
     data: *mut c_void,
     tag: u16,
   ) {
+    Self::assert_valid_embedder_data_tag(tag);
+
     // Initialize the annex when slot count > INTERNAL_SLOT_COUNT.
     self.get_annex_mut(true);
 
@@ -499,22 +519,28 @@ impl Context {
   /// Gets a 2-byte-aligned native pointer from the embedder data with the
   /// given index, which must have been set by a previous call to
   /// [`set_aligned_pointer_in_embedder_data_with_tag`] with the same index
-  /// and the same `tag`. Passing a tag other than the one the slot was
-  /// written with yields an unspecified pointer rather than an error, so the
-  /// returned pointer must not be dereferenced unless the tags match.
+  /// and the same `tag`.
   ///
-  /// `tag` must be in the range `0..V8_EMBEDDER_DATA_TAG_COUNT` (15 at the
-  /// time of writing); see
-  /// [`set_aligned_pointer_in_embedder_data_with_tag`].
+  /// If the tag does not match the one the slot was written with, this returns
+  /// null when the V8 sandbox is enabled and the stored pointer when it is
+  /// not; see [`set_aligned_pointer_in_embedder_data_with_tag`]. Do not
+  /// dereference the result unless the tags match.
+  ///
+  /// # Panics
+  ///
+  /// Panics if `tag` is not less than [`EMBEDDER_DATA_TAG_COUNT`].
   ///
   /// [`set_aligned_pointer_in_embedder_data_with_tag`]:
   ///     Context::set_aligned_pointer_in_embedder_data_with_tag
+  /// [`EMBEDDER_DATA_TAG_COUNT`]: Context::EMBEDDER_DATA_TAG_COUNT
   #[inline(always)]
   pub fn get_aligned_pointer_from_embedder_data_with_tag(
     &self,
     slot: i32,
     tag: u16,
   ) -> *mut c_void {
+    Self::assert_valid_embedder_data_tag(tag);
+
     unsafe {
       v8__Context__GetAlignedPointerFromEmbedderData(
         self,

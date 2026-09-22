@@ -1981,13 +1981,18 @@ const v8::Array* v8__Array__New_with_elements(v8::Isolate* isolate,
 
 uint32_t v8__Array__Length(const v8::Array& self) { return self.Length(); }
 
-// The Rust `ArrayIterationResult` enum is declared `#[repr(C)]` with its
-// variants in this order, and is returned directly from the Rust callback,
-// so the discriminants must keep matching V8's.
+// The Rust `ArrayIterationResult` enum is declared `#[repr(i32)]` with its
+// variants in this order, and is returned directly from the Rust callback, so
+// both the discriminants and the width must keep matching V8's. A scoped enum
+// with no fixed underlying type is `int` ([dcl.enum]/5); if V8 ever gives
+// CallbackResult an explicit underlying type, the size assert catches it even
+// though the discriminants would be unchanged.
 static_assert(static_cast<int>(v8::Array::CallbackResult::kException) == 0 &&
                   static_cast<int>(v8::Array::CallbackResult::kBreak) == 1 &&
                   static_cast<int>(v8::Array::CallbackResult::kContinue) == 2,
               "Array::CallbackResult discriminant mismatch");
+static_assert(sizeof(v8::Array::CallbackResult) == sizeof(int),
+              "Array::CallbackResult size mismatch");
 
 // Trampoline that adapts V8's `Local<Value>`-taking iteration callback to a
 // plain pointer-based callback that can be implemented in Rust.
@@ -2351,11 +2356,17 @@ uint32_t v8__Context__GetNumberOfEmbedderDataFields(const v8::Context& self) {
 }
 
 // Embedder data tags cross the FFI boundary as a bare `u16`, and Rust
-// hardcodes the default tag as `Context::EMBEDDER_DATA_TAG_DEFAULT = 0`.
+// hardcodes the default tag as `Context::EMBEDDER_DATA_TAG_DEFAULT = 0` and
+// the tag count as `Context::EMBEDDER_DATA_TAG_COUNT`. Out-of-range tags make
+// v8::ToExternalPointerTag abort, so Rust range-checks against that constant;
+// if V8 raises the count, bump the Rust constant to match.
 static_assert(sizeof(v8::EmbedderDataTypeTag) == sizeof(uint16_t),
               "EmbedderDataTypeTag size mismatch");
 static_assert(v8::kEmbedderDataTypeTagDefault == 0,
               "kEmbedderDataTypeTagDefault mismatch");
+static_assert(V8_EMBEDDER_DATA_TAG_COUNT == 15,
+              "V8_EMBEDDER_DATA_TAG_COUNT changed; update "
+              "Context::EMBEDDER_DATA_TAG_COUNT in src/context.rs");
 
 void* v8__Context__GetAlignedPointerFromEmbedderData(
     const v8::Context& self, int index, v8::EmbedderDataTypeTag tag) {
@@ -2801,6 +2812,14 @@ const v8::Object* v8__RegExp__Exec(v8::RegExp& self, const v8::Context& context,
                                    const v8::String& subject) {
   return maybe_local_to_ptr(
       self.Exec(ptr_to_local(&context), ptr_to_local(&subject)));
+}
+
+// The largest value v8::RegExp::NewWithBacktrackLimit accepts. It ApiChecks
+// (i.e. aborts, even in release builds) that the limit is a valid Smi, and the
+// Smi range depends on whether pointer compression is enabled, so report it to
+// Rust rather than hardcoding a bound there.
+uint32_t v8__RegExp__MAX_BACKTRACK_LIMIT() {
+  return static_cast<uint32_t>(v8::internal::kSmiMaxValue);
 }
 
 const v8::RegExp* v8__RegExp__NewWithBacktrackLimit(const v8::Context& context,

@@ -1338,19 +1338,7 @@ impl Array {
   /// Calls `callback` for every element of this array.
   ///
   /// This function will typically be faster than calling [`get_index()`]
-  /// repeatedly. As a consequence of being optimized for low overhead, the
-  /// provided callback must adhere to the following restrictions:
-  ///
-  /// - It must not allocate any V8 objects and continue iterating; it may
-  ///   allocate (e.g. an error message/object) and then immediately terminate
-  ///   the iteration.
-  /// - It must not modify the array being iterated.
-  /// - It must not call back into V8 (unless it can guarantee that such a call
-  ///   does not violate the above restrictions, which is difficult).
-  /// - The element handle must not "escape", i.e. must not be assigned to any
-  ///   other `Local`. Creating a `Global` from it is safe.
-  /// - It must not panic. The callback is invoked across an `extern "C"`
-  ///   boundary, so a panic aborts the process rather than unwinding.
+  /// repeatedly.
   ///
   /// Returns `None` on exception; use a [`TryCatch`] to catch and handle the
   /// exception. When the callback returns [`ArrayIterationResult::Exception`],
@@ -1358,10 +1346,37 @@ impl Array {
   /// [`ArrayIterationResult::Break`], the callback can request non-exceptional
   /// early termination of the iteration.
   ///
+  /// # Safety
+  ///
+  /// This entry point is optimized for low overhead: while iterating, V8 holds
+  /// a raw pointer to the array's backing store that is not visible to the
+  /// garbage collector, and hands the callback a handle that does not point
+  /// into a handle scope. V8 deliberately does not enforce the rules below, so
+  /// violating any of them is undefined behaviour rather than a panic or a
+  /// failed assertion. The callback:
+  ///
+  /// - Must not allocate any V8 objects and then continue iterating. It may
+  ///   allocate (e.g. an error message/object) and then immediately terminate
+  ///   the iteration by returning [`ArrayIterationResult::Exception`] or
+  ///   [`ArrayIterationResult::Break`]. Allocating and continuing can trigger
+  ///   a garbage collection that moves the backing store, after which the
+  ///   remaining elements are read from freed memory.
+  /// - Must not modify the array being iterated. V8 only checks this with a
+  ///   `DCHECK`, so in release builds a mutation silently reads a stale
+  ///   backing store.
+  /// - Must not call back into V8, unless it can guarantee that such a call
+  ///   violates neither of the above, which is difficult. Note that the
+  ///   callback can reach the surrounding scope, so this is not prevented by
+  ///   the signature.
+  /// - Must not let the element handle "escape", i.e. must not assign it to
+  ///   any other `Local`. Creating a `Global` from it is safe.
+  /// - Must not panic. The callback is invoked across an `extern "C"`
+  ///   boundary, so a panic aborts the process rather than unwinding.
+  ///
   /// [`get_index()`]: Object::get_index
   /// [`TryCatch`]: crate::TryCatch
   #[inline(always)]
-  pub fn iterate<F>(
+  pub unsafe fn iterate<F>(
     &self,
     scope: &PinScope<'_, '_>,
     mut callback: F,
@@ -1378,7 +1393,12 @@ impl Array {
       F: for<'a> FnMut(u32, Local<'a, Value>) -> ArrayIterationResult,
     {
       let callback = unsafe { &mut *data.cast::<F>() };
-      let element = unsafe { Local::from_raw_unchecked(element) };
+      // V8 never passes an empty handle here: holes are replaced with
+      // `undefined` and the slow path uses a checked conversion. Use the
+      // checked constructor anyway so a future change upstream turns into a
+      // panic rather than a null dereference.
+      let element = unsafe { Local::from_raw(element) }
+        .expect("v8::Array::Iterate passed an empty element handle");
       callback(index, element)
     }
 
@@ -1399,9 +1419,11 @@ impl Array {
 /// iteration continues.
 ///
 /// Mirrors `v8::Array::CallbackResult`; the variants are returned directly to
-/// V8, so their order must match (see the `static_assert` in `binding.cc`).
+/// V8, so both their order and the enum's width must match. `#[repr(i32)]`
+/// pins the width to that of a C++ scoped enum with no fixed underlying type;
+/// `binding.cc` static_asserts both properties.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(C)]
+#[repr(i32)]
 pub enum ArrayIterationResult {
   /// Terminate iteration immediately; an exception has been thrown.
   Exception,
