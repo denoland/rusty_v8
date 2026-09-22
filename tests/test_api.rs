@@ -284,6 +284,33 @@ fn new_from_utf8_simd_transcode() {
     s
   );
 
+  // Large non-ASCII strings (past ENCODE_SCRATCH_MAX_CAP) grow the reused
+  // scratch buffers beyond the cap; the small string afterwards reuses them
+  // once they have been shrunk back. All must round-trip. This exercises the
+  // Latin-1 path (é), the Latin-1-fails-then-UTF-16 path (世), and reuse after
+  // shrinking.
+  let big_latin1 = "é".repeat(100_000);
+  assert_eq!(
+    v8::String::new(scope, &big_latin1)
+      .unwrap()
+      .to_rust_string_lossy(scope),
+    big_latin1
+  );
+  let big_utf16 = "世".repeat(100_000);
+  assert_eq!(
+    v8::String::new(scope, &big_utf16)
+      .unwrap()
+      .to_rust_string_lossy(scope),
+    big_utf16
+  );
+  let small_after = "café ".repeat(8);
+  assert_eq!(
+    v8::String::new(scope, &small_after)
+      .unwrap()
+      .to_rust_string_lossy(scope),
+    small_after
+  );
+
   // Invalid UTF-8 (>= threshold, non-ASCII) -> V8's lossy NewFromUtf8.
   let invalid = b"valid_ascii_prefix_\xFF\xFE_invalid_tail";
   let got =
