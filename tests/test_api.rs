@@ -16356,6 +16356,75 @@ fn global_drop_from_cold_tls_destructor() {
 }
 
 #[test]
+fn global_liveness_cell_outlives_isolate_until_last_drop() {
+  let _setup_guard = setup::parallel_test();
+  // The liveness cell is shared by the isolate's annex and every Global.
+  // Make each participant the last owner in turn; a refcount bug here is
+  // a use-after-free or double-free, not just a leak.
+  let mut isolate = v8::Isolate::new(Default::default());
+  let global = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let scope = scope.init();
+    let value = v8::String::new(&scope, "liveness").unwrap();
+    v8::Global::new(&scope, value)
+  };
+  let clone = global.clone();
+  // Home-thread drop while the isolate is alive: annex keeps the cell.
+  drop(global);
+  // Isolate teardown with a Global outstanding: the clone keeps the cell.
+  drop(isolate);
+  // Late drop on another thread reads the disposed state, then frees the
+  // cell as the last owner.
+  std::thread::spawn(move || drop(clone)).join().unwrap();
+}
+
+#[test]
+fn global_into_raw_after_isolate_disposal() {
+  let _setup_guard = setup::parallel_test();
+  let global = {
+    let mut isolate = v8::Isolate::new(Default::default());
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let scope = scope.init();
+    let value = v8::String::new(&scope, "raw").unwrap();
+    v8::Global::new(&scope, value)
+  };
+  // The isolate is gone, so this releases the last reference to its
+  // liveness cell. The raw pointer's V8 cell died with the isolate and
+  // must never be restored.
+  let _raw = global.into_raw();
+}
+
+#[test]
+fn global_into_raw_from_raw_round_trips_are_balanced() {
+  let _setup_guard = setup::parallel_test();
+  let mut isolate = v8::Isolate::new(Default::default());
+  let mut global = {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let scope = scope.init();
+    let value = v8::String::new(&scope, "raw").unwrap();
+    v8::Global::new(&scope, value)
+  };
+  // Each round-trip must release exactly the liveness reference it
+  // holds. An over-release frees the cell while the annex still holds a
+  // reference and crashes under this loop; an under-release pins the
+  // cell, which a leak checker reports.
+  for _ in 0..1000 {
+    let raw = global.into_raw();
+    global = unsafe { v8::Global::from_raw(&mut isolate, raw) };
+  }
+  {
+    let scope = pin!(v8::HandleScope::new(&mut isolate));
+    let scope = scope.init();
+    let local = v8::Local::new(&scope, &global);
+    assert_eq!(local.to_rust_string_lossy(&scope), "raw");
+  }
+  // A round-tripped Global dropped after disposal must still read a live
+  // cell and free it as the last reference.
+  drop(isolate);
+  drop(global);
+}
+
+#[test]
 fn global_clone_inside_unlock_window_panics() {
   let _setup_guard = setup::parallel_test();
   let shared = unsafe {
