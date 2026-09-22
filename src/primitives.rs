@@ -10,6 +10,7 @@ unsafe extern "C" {
 
   fn v8__Boolean__New(isolate: *mut RealIsolate, value: bool)
   -> *const Boolean;
+  fn v8__Boolean__Value(this: *const Boolean) -> bool;
 }
 
 #[inline(always)]
@@ -42,5 +43,11 @@ impl Boolean {
         value,
       ))
     }
+  }
+
+  /// Returns the value of this boolean.
+  #[inline(always)]
+  pub fn value(&self) -> bool {
+    unsafe { v8__Boolean__Value(self) }
   }
 }

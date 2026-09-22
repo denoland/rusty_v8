@@ -53,6 +53,8 @@ unsafe extern "C" {
   fn v8__Value__IsSetGeneratorObject(this: *const Value) -> bool;
   fn v8__Value__IsWeakMap(this: *const Value) -> bool;
   fn v8__Value__IsWeakSet(this: *const Value) -> bool;
+  fn v8__Value__IsWeakRef(this: *const Value) -> bool;
+  fn v8__Value__IsWasmNull(this: *const Value) -> bool;
   fn v8__Value__IsArrayBuffer(this: *const Value) -> bool;
   fn v8__Value__IsArrayBufferView(this: *const Value) -> bool;
   fn v8__Value__IsTypedArray(this: *const Value) -> bool;
@@ -379,6 +381,18 @@ impl Value {
   #[inline(always)]
   pub fn is_weak_set(&self) -> bool {
     unsafe { v8__Value__IsWeakSet(self) }
+  }
+
+  /// Returns true if this value is a WeakRef.
+  #[inline(always)]
+  pub fn is_weak_ref(&self) -> bool {
+    unsafe { v8__Value__IsWeakRef(self) }
+  }
+
+  /// Returns true if this value is the WasmNull object.
+  #[inline(always)]
+  pub fn is_wasm_null(&self) -> bool {
+    unsafe { v8__Value__IsWasmNull(self) }
   }
 
   /// Returns true if this value is an ArrayBuffer.

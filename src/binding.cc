@@ -916,6 +916,10 @@ bool v8__Value__IsWeakMap(const v8::Value& self) { return self.IsWeakMap(); }
 
 bool v8__Value__IsWeakSet(const v8::Value& self) { return self.IsWeakSet(); }
 
+bool v8__Value__IsWeakRef(const v8::Value& self) { return self.IsWeakRef(); }
+
+bool v8__Value__IsWasmNull(const v8::Value& self) { return self.IsWasmNull(); }
+
 bool v8__Value__IsArrayBuffer(const v8::Value& self) {
   return self.IsArrayBuffer();
 }
@@ -1097,6 +1101,8 @@ const v8::Primitive* v8__Undefined(v8::Isolate* isolate) {
 const v8::Boolean* v8__Boolean__New(v8::Isolate* isolate, bool value) {
   return local_to_ptr(v8::Boolean::New(isolate, value));
 }
+
+bool v8__Boolean__Value(const v8::Boolean& self) { return self.Value(); }
 
 int v8__FixedArray__Length(const v8::FixedArray& self) { return self.Length(); }
 
@@ -1452,6 +1458,15 @@ bool v8__String__ContainsOnlyOneByte(const v8::String& self) {
   return self.ContainsOnlyOneByte();
 }
 
+bool v8__String__StringEquals(const v8::String& self, const v8::String* that) {
+  return self.StringEquals(ptr_to_local(that));
+}
+
+const v8::String* v8__String__InternalizeString(v8::String& self,
+                                                v8::Isolate* isolate) {
+  return local_to_ptr(ptr_to_local(&self)->InternalizeString(isolate));
+}
+
 void v8__String__ValueView__CONSTRUCT(uninit_t<v8::String::ValueView>* buf,
                                       v8::Isolate* isolate,
                                       const v8::String& string) {
@@ -1494,6 +1509,8 @@ V(Split)
 V(ToPrimitive)
 V(ToStringTag)
 V(Unscopables)
+V(Dispose)
+V(AsyncDispose)
 #undef V
 
 const v8::Value* v8__Symbol__Description(const v8::Symbol& self,
@@ -1658,6 +1675,12 @@ bool v8__Object__IsApiWrapper(const v8::Object& self) {
 
 const v8::Value* v8__Object__GetPrototype(const v8::Object& self) {
   return local_to_ptr(ptr_to_local(&self)->GetPrototypeV2());
+}
+
+const v8::Object* v8__Object__FindInstanceInPrototypeChain(
+    const v8::Object& self, const v8::FunctionTemplate& tmpl) {
+  return local_to_ptr(
+      ptr_to_local(&self)->FindInstanceInPrototypeChain(ptr_to_local(&tmpl)));
 }
 
 MaybeBool v8__Object__Set(const v8::Object& self, const v8::Context& context,
@@ -1958,6 +1981,48 @@ const v8::Array* v8__Array__New_with_elements(v8::Isolate* isolate,
 
 uint32_t v8__Array__Length(const v8::Array& self) { return self.Length(); }
 
+// The Rust `ArrayIterationResult` enum is declared `#[repr(i32)]` with its
+// variants in this order, and is returned directly from the Rust callback, so
+// both the discriminants and the width must keep matching V8's. A scoped enum
+// with no fixed underlying type is `int` ([dcl.enum]/5); if V8 ever gives
+// CallbackResult an explicit underlying type, the size assert catches it even
+// though the discriminants would be unchanged.
+static_assert(static_cast<int>(v8::Array::CallbackResult::kException) == 0 &&
+                  static_cast<int>(v8::Array::CallbackResult::kBreak) == 1 &&
+                  static_cast<int>(v8::Array::CallbackResult::kContinue) == 2,
+              "Array::CallbackResult discriminant mismatch");
+static_assert(sizeof(v8::Array::CallbackResult) == sizeof(int),
+              "Array::CallbackResult size mismatch");
+
+// Trampoline that adapts V8's `Local<Value>`-taking iteration callback to a
+// plain pointer-based callback that can be implemented in Rust.
+namespace {
+struct ArrayIterateCallbackData {
+  v8::Array::CallbackResult (*callback)(uint32_t index,
+                                        const v8::Value* element, void* data);
+  void* data;
+};
+
+v8::Array::CallbackResult array_iterate_trampoline(uint32_t index,
+                                                   v8::Local<v8::Value> element,
+                                                   void* data) {
+  auto* wrapped = static_cast<ArrayIterateCallbackData*>(data);
+  return wrapped->callback(index, local_to_ptr(element), wrapped->data);
+}
+}  // namespace
+
+// Returns false if iteration was terminated by an exception, true otherwise.
+bool v8__Array__Iterate(
+    const v8::Array& self, const v8::Context& context,
+    v8::Array::CallbackResult (*callback)(uint32_t index,
+                                          const v8::Value* element, void* data),
+    void* callback_data) {
+  ArrayIterateCallbackData wrapped{callback, callback_data};
+  return ptr_to_local(&self)
+      ->Iterate(ptr_to_local(&context), array_iterate_trampoline, &wrapped)
+      .IsJust();
+}
+
 const v8::Date* v8__Date__New(const v8::Context& context, double time) {
   // v8::Date::New() is kind of weird in that it returns a v8::Value,
   // not a v8::Date, even though the object is always a Date object.
@@ -1973,7 +2038,31 @@ const v8::Date* v8__Date__New(const v8::Context& context, double time) {
   return maybe_local_to_ptr(maybe_date);
 }
 
+const v8::Date* v8__Date__Parse(const v8::Context& context,
+                                const v8::String& date_string) {
+  // Like v8::Date::New(), v8::Date::Parse() returns a v8::Value rather than
+  // a v8::Date, even though the resulting object is always a Date object.
+  v8::MaybeLocal<v8::Date> maybe_date;
+
+  v8::Local<v8::Value> value;
+  if (v8::Date::Parse(ptr_to_local(&context), ptr_to_local(&date_string))
+          .ToLocal(&value)) {
+    assert(value->IsDate());
+    maybe_date = value.As<v8::Date>();
+  }
+
+  return maybe_local_to_ptr(maybe_date);
+}
+
 double v8__Date__ValueOf(const v8::Date& self) { return self.ValueOf(); }
+
+const v8::String* v8__Date__ToISOString(const v8::Date& self) {
+  return local_to_ptr(self.ToISOString());
+}
+
+const v8::String* v8__Date__ToUTCString(const v8::Date& self) {
+  return local_to_ptr(self.ToUTCString());
+}
 
 const v8::External* v8__External__New(v8::Isolate* isolate, void* value) {
   return local_to_ptr(
@@ -2266,14 +2355,28 @@ uint32_t v8__Context__GetNumberOfEmbedderDataFields(const v8::Context& self) {
   return ptr_to_local(&self)->GetNumberOfEmbedderDataFields();
 }
 
-void* v8__Context__GetAlignedPointerFromEmbedderData(const v8::Context& self,
-                                                     int index) {
-  return ptr_to_local(&self)->GetAlignedPointerFromEmbedderData(index);
+// Embedder data tags cross the FFI boundary as a bare `u16`, and Rust
+// hardcodes the default tag as `Context::EMBEDDER_DATA_TAG_DEFAULT = 0` and
+// the tag count as `Context::EMBEDDER_DATA_TAG_COUNT`. Out-of-range tags make
+// v8::ToExternalPointerTag abort, so Rust range-checks against that constant;
+// if V8 raises the count, bump the Rust constant to match.
+static_assert(sizeof(v8::EmbedderDataTypeTag) == sizeof(uint16_t),
+              "EmbedderDataTypeTag size mismatch");
+static_assert(v8::kEmbedderDataTypeTagDefault == 0,
+              "kEmbedderDataTypeTagDefault mismatch");
+static_assert(V8_EMBEDDER_DATA_TAG_COUNT == 15,
+              "V8_EMBEDDER_DATA_TAG_COUNT changed; update "
+              "Context::EMBEDDER_DATA_TAG_COUNT in src/context.rs");
+
+void* v8__Context__GetAlignedPointerFromEmbedderData(
+    const v8::Context& self, int index, v8::EmbedderDataTypeTag tag) {
+  return ptr_to_local(&self)->GetAlignedPointerFromEmbedderData(index, tag);
 }
 
 void v8__Context__SetAlignedPointerInEmbedderData(v8::Context& self, int index,
-                                                  void* value) {
-  ptr_to_local(&self)->SetAlignedPointerInEmbedderData(index, value);
+                                                  void* value,
+                                                  v8::EmbedderDataTypeTag tag) {
+  ptr_to_local(&self)->SetAlignedPointerInEmbedderData(index, value, tag);
 }
 
 const v8::Value* v8__Context__GetEmbedderData(const v8::Context& self,
@@ -2709,6 +2812,22 @@ const v8::Object* v8__RegExp__Exec(v8::RegExp& self, const v8::Context& context,
                                    const v8::String& subject) {
   return maybe_local_to_ptr(
       self.Exec(ptr_to_local(&context), ptr_to_local(&subject)));
+}
+
+// The largest value v8::RegExp::NewWithBacktrackLimit accepts. It ApiChecks
+// (i.e. aborts, even in release builds) that the limit is a valid Smi, and the
+// Smi range depends on whether pointer compression is enabled, so report it to
+// Rust rather than hardcoding a bound there.
+uint32_t v8__RegExp__MAX_BACKTRACK_LIMIT() {
+  return static_cast<uint32_t>(v8::internal::kSmiMaxValue);
+}
+
+const v8::RegExp* v8__RegExp__NewWithBacktrackLimit(const v8::Context& context,
+                                                    const v8::String& pattern,
+                                                    v8::RegExp::Flags flags,
+                                                    uint32_t backtrack_limit) {
+  return maybe_local_to_ptr(v8::RegExp::NewWithBacktrackLimit(
+      ptr_to_local(&context), ptr_to_local(&pattern), flags, backtrack_limit));
 }
 
 const v8::String* v8__RegExp__GetSource(const v8::RegExp& self) {

@@ -9158,6 +9158,67 @@ fn date() {
 }
 
 #[test]
+fn date_to_string() {
+  let time = 1_291_404_900_000.; // 2010-12-03 19:35:00 UTC
+
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let date = v8::Date::new(scope, time).unwrap();
+
+  assert_eq!(
+    date.to_iso_string(scope).to_rust_string_lossy(scope),
+    "2010-12-03T19:35:00.000Z"
+  );
+  assert_eq!(
+    date.to_utc_string(scope).to_rust_string_lossy(scope),
+    "Fri, 03 Dec 2010 19:35:00 GMT"
+  );
+}
+
+#[test]
+fn date_parse() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let source = v8::String::new(scope, "2010-12-03T19:35:00.000Z").unwrap();
+  let date = v8::Date::parse(scope, source).unwrap();
+  assert_eq!(date.value_of(), 1_291_404_900_000.);
+  assert_eq!(
+    date.to_iso_string(scope).to_rust_string_lossy(scope),
+    "2010-12-03T19:35:00.000Z"
+  );
+
+  // An unparsable string yields a Date whose value is NaN rather than an
+  // empty handle.
+  let source = v8::String::new(scope, "not a date at all").unwrap();
+  let date = v8::Date::parse(scope, source).unwrap();
+  assert!(date.value_of().is_nan());
+
+  // Stringifying a NaN date does not throw the way JS `toISOString()` does,
+  // and does not return an empty handle either, so the conversions below are
+  // infallible.
+  assert_eq!(
+    date.to_iso_string(scope).to_rust_string_lossy(scope),
+    "Invalid Date"
+  );
+  assert_eq!(
+    date.to_utc_string(scope).to_rust_string_lossy(scope),
+    "Invalid Date"
+  );
+}
+
+#[test]
 fn symbol() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -9194,6 +9255,12 @@ fn symbol() {
 
   let s = eval(scope, "Symbol.asyncIterator").unwrap();
   assert!(s == v8::Symbol::get_async_iterator(scope));
+
+  let s = eval(scope, "Symbol.dispose").unwrap();
+  assert!(s == v8::Symbol::get_dispose(scope));
+
+  let s = eval(scope, "Symbol.asyncDispose").unwrap();
+  assert!(s == v8::Symbol::get_async_dispose(scope));
 }
 
 #[test]
@@ -14236,6 +14303,129 @@ fn test_regexp() {
 }
 
 #[test]
+fn test_regexp_backtrack_limit() {
+  let _setup_guard = setup::parallel_test();
+
+  let mut isolate = v8::Isolate::new(Default::default());
+  let scope = pin!(v8::HandleScope::new(&mut isolate));
+  let mut scope = scope.init();
+  let context = v8::Context::new(&scope, Default::default());
+  let scope = &mut v8::ContextScope::new(&mut scope, context);
+
+  // A pattern that backtracks catastrophically, and a subject that does match
+  // it, but only after the leading run of "a"s has been explored exhaustively:
+  // the "!" forces roughly 2^20 backtracks before the engine gives up on
+  // position 0 and goes on to find "aaaab" further along.
+  //
+  // This makes the two cases below differ in their *result*, not just in how
+  // long they take: without a limit the subject matches, and with a limit far
+  // below the required number of backtracks it does not.
+  let pattern = v8::String::new(scope, "(a*)*b").unwrap();
+  let subject_src = format!("{}!aaaab", "a".repeat(20));
+  let subject = v8::String::new(scope, &subject_src).unwrap();
+
+  // Without a limit, the engine spends all the backtracks it needs and finds
+  // the match.
+  let regexp =
+    v8::RegExp::new(scope, pattern, v8::RegExpCreationFlags::empty()).unwrap();
+  assert_eq!(
+    regexp.get_source(scope).to_rust_string_lossy(scope),
+    "(a*)*b"
+  );
+  let matched = regexp
+    .exec(scope, subject)
+    .is_some_and(|result| !result.is_null());
+  assert!(matched, "unlimited regexp should match {subject_src:?}");
+
+  // With a very low backtrack limit the budget is exhausted long before the
+  // match is reached, and a match failure is returned instead. A failed match
+  // is reported as a null result rather than an empty handle.
+  let limited = v8::RegExp::new_with_backtrack_limit(
+    scope,
+    pattern,
+    v8::RegExpCreationFlags::empty(),
+    10,
+  )
+  .unwrap();
+  assert_eq!(
+    limited.get_source(scope).to_rust_string_lossy(scope),
+    "(a*)*b"
+  );
+  let matched = limited
+    .exec(scope, subject)
+    .is_some_and(|result| !result.is_null());
+  assert!(
+    !matched,
+    "backtrack limit should have forced a match failure"
+  );
+
+  // A subject that matches without exceeding the limit is still matched.
+  let easy = v8::String::new(scope, "ab").unwrap();
+  let matched = limited
+    .exec(scope, easy)
+    .is_some_and(|result| !result.is_null());
+  assert!(matched);
+
+  // The largest limit V8 accepts is accepted, i.e. the bound is not off by
+  // one. The limit is high enough that the easy subject still matches.
+  let at_max = v8::RegExp::new_with_backtrack_limit(
+    scope,
+    pattern,
+    v8::RegExpCreationFlags::empty(),
+    v8::RegExp::max_backtrack_limit(),
+  )
+  .unwrap();
+  let matched = at_max
+    .exec(scope, easy)
+    .is_some_and(|result| !result.is_null());
+  assert!(matched);
+}
+
+// Zero is V8's kNoBacktrackLimit sentinel, and NewWithBacktrackLimit ApiChecks
+// against it — which aborts the process rather than returning an empty handle,
+// even in release builds. The binding rejects it first.
+#[test]
+#[should_panic(expected = "backtrack_limit must not be zero")]
+fn test_regexp_backtrack_limit_zero_panics() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let pattern = v8::String::new(scope, "a").unwrap();
+  let _ = v8::RegExp::new_with_backtrack_limit(
+    scope,
+    pattern,
+    v8::RegExpCreationFlags::empty(),
+    0,
+  );
+}
+
+// Likewise, V8 requires the limit to be a valid Smi and aborts otherwise. The
+// Smi range depends on pointer compression, so the bound comes from V8.
+#[test]
+#[should_panic(expected = "exceeds the maximum")]
+fn test_regexp_backtrack_limit_too_large_panics() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let max = v8::RegExp::max_backtrack_limit();
+  assert!(max < u32::MAX, "max backtrack limit should leave headroom");
+
+  let pattern = v8::String::new(scope, "a").unwrap();
+  let _ = v8::RegExp::new_with_backtrack_limit(
+    scope,
+    pattern,
+    v8::RegExpCreationFlags::empty(),
+    max + 1,
+  );
+}
+
+#[test]
 fn crdtp_json_cbor_conversion() {
   let json = r#"{"id":1,"method":"Network.enable","params":{}}"#;
   let cbor = v8::crdtp::json_to_cbor(json.as_bytes());
@@ -16360,4 +16550,411 @@ fn object_call_as_function_with_context() {
       2
     );
   }
+}
+
+#[test]
+fn boolean_value() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  assert!(v8::Boolean::new(scope, true).value());
+  assert!(!v8::Boolean::new(scope, false).value());
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let t = eval(scope, "true").unwrap();
+  let t = v8::Local::<v8::Boolean>::try_from(t).unwrap();
+  assert!(t.value());
+
+  let f = eval(scope, "1 === 2").unwrap();
+  let f = v8::Local::<v8::Boolean>::try_from(f).unwrap();
+  assert!(!f.value());
+}
+
+#[test]
+fn is_weak_ref() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let weak_ref = eval(scope, "new WeakRef({})").unwrap();
+  assert!(weak_ref.is_weak_ref());
+  assert!(!weak_ref.is_wasm_null());
+
+  let not_a_weak_ref = eval(scope, "new WeakMap()").unwrap();
+  assert!(!not_a_weak_ref.is_weak_ref());
+
+  let object = eval(scope, "({})").unwrap();
+  assert!(!object.is_weak_ref());
+  assert!(!object.is_wasm_null());
+}
+
+#[test]
+fn string_equals() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let a = v8::String::new(scope, "hello").unwrap();
+  let b = v8::String::new(scope, "hello").unwrap();
+  let c = v8::String::new(scope, "world").unwrap();
+
+  // Distinct handles with equal contents compare equal by contents.
+  assert!(a.string_equals(b));
+  assert!(b.string_equals(a));
+  assert!(!a.string_equals(c));
+  assert!(a.string_equals(a));
+}
+
+#[test]
+fn internalize_string() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let a = v8::String::new(scope, "some string").unwrap();
+  let b = v8::String::new(scope, "some string").unwrap();
+
+  let a_internalized = a.internalize_string(scope);
+  let b_internalized = b.internalize_string(scope);
+
+  // Internalizing two equal strings yields the same object.
+  assert_eq!(a_internalized, b_internalized);
+  assert_eq!(a_internalized.to_rust_string_lossy(scope), "some string");
+
+  let c = v8::String::new(scope, "other string").unwrap();
+  assert_ne!(a_internalized, c.internalize_string(scope));
+}
+
+#[test]
+fn array_iterate() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let array = eval(scope, "[10, 20, 30, 40]").unwrap();
+  let array = v8::Local::<v8::Array>::try_from(array).unwrap();
+
+  // Visit every element. Every callback below observes only the element's type
+  // tag and local state: no V8 allocation, no reentry into V8, no mutation of
+  // the array, no panic, and the element handle never escapes.
+  let mut seen = Vec::new();
+  // SAFETY: the callback does not allocate, reenter V8, mutate the array, or
+  // let the element handle escape.
+  let result = unsafe {
+    array.iterate(scope, |index, element| {
+      seen.push((index, element.is_number()));
+      v8::ArrayIterationResult::Continue
+    })
+  };
+  assert_eq!(result, Some(()));
+  assert_eq!(seen, vec![(0, true), (1, true), (2, true), (3, true)]);
+
+  // The elements are the ones we expect, read back outside of iterate().
+  assert_eq!(array.length(), 4);
+  for (index, expected) in [10u32, 20, 30, 40].into_iter().enumerate() {
+    let value = array.get_index(scope, index as u32).unwrap();
+    assert_eq!(value.uint32_value(scope).unwrap(), expected);
+  }
+
+  // Break out early.
+  let mut count = 0;
+  // SAFETY: as above.
+  let result = unsafe {
+    array.iterate(scope, |_index, _element| {
+      count += 1;
+      if count == 2 {
+        v8::ArrayIterationResult::Break
+      } else {
+        v8::ArrayIterationResult::Continue
+      }
+    })
+  };
+  assert_eq!(result, Some(()));
+  assert_eq!(count, 2);
+
+  // Terminating with Exception reports failure to the caller.
+  let mut count = 0;
+  // SAFETY: as above.
+  let result = unsafe {
+    array.iterate(scope, |_index, _element| {
+      count += 1;
+      v8::ArrayIterationResult::Exception
+    })
+  };
+  assert_eq!(result, None);
+  assert_eq!(count, 1);
+
+  // An empty array never invokes the callback.
+  let empty = v8::Array::new(scope, 0);
+  let mut called = false;
+  // SAFETY: as above.
+  let result = unsafe {
+    empty.iterate(scope, |_index, _element| {
+      called = true;
+      v8::ArrayIterationResult::Continue
+    })
+  };
+  assert_eq!(result, Some(()));
+  assert!(!called);
+}
+
+#[test]
+fn array_iterate_holey() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  // A holey array takes a different branch in V8's fast iteration path, which
+  // substitutes `undefined` for each hole rather than passing an empty handle.
+  let array = eval(scope, "[1, , 3, , ]").unwrap();
+  let array = v8::Local::<v8::Array>::try_from(array).unwrap();
+  assert_eq!(array.length(), 4);
+
+  let mut seen = Vec::new();
+  // SAFETY: the callback does not allocate, reenter V8, mutate the array, or
+  // let the element handle escape.
+  let result = unsafe {
+    array.iterate(scope, |index, element| {
+      seen.push((index, element.is_undefined(), element.is_number()));
+      v8::ArrayIterationResult::Continue
+    })
+  };
+
+  assert_eq!(result, Some(()));
+  assert_eq!(
+    seen,
+    vec![
+      (0, false, true),
+      (1, true, false),
+      (2, false, true),
+      (3, true, false),
+    ]
+  );
+}
+
+#[test]
+fn array_iterate_throws() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let array = eval(scope, "[10, 20, 30]").unwrap();
+  let array = v8::Local::<v8::Array>::try_from(array).unwrap();
+
+  v8::tc_scope!(let tc, scope);
+
+  // Allocate the exception up front: V8 permits the callback to allocate only
+  // if the iteration then terminates immediately, which returning `Exception`
+  // does, but keeping the allocation outside the callback avoids the question
+  // entirely.
+  let exception: v8::Local<v8::Value> =
+    v8::String::new(tc, "boom").unwrap().into();
+
+  // Reborrow as a shared reference so the scope can be both passed to
+  // iterate() and used from inside the callback.
+  let tc = &*tc;
+
+  let mut count = 0;
+  // SAFETY: throwing and then immediately terminating the iteration is the
+  // one reentry V8 explicitly permits (see the comment in FastIterateArray);
+  // the allocation was hoisted out above, and the handle does not escape.
+  let result = unsafe {
+    array.iterate(tc, |_index, _element| {
+      count += 1;
+      tc.throw_exception(exception);
+      v8::ArrayIterationResult::Exception
+    })
+  };
+
+  // Terminating with `Exception` reports `None`, and the exception thrown by
+  // the callback is observable through the TryCatch, as the docs describe.
+  assert_eq!(result, None);
+  assert_eq!(count, 1);
+  assert!(tc.has_caught());
+  assert!(tc.exception().unwrap().strict_equals(exception));
+}
+
+#[test]
+fn find_instance_in_prototype_chain() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let base = v8::FunctionTemplate::new(scope, fortytwo_callback);
+  let derived = v8::FunctionTemplate::new(scope, fortytwo_callback);
+  derived.inherit(base);
+
+  let derived_instance = derived
+    .get_function(scope)
+    .unwrap()
+    .new_instance(scope, &[])
+    .unwrap();
+
+  // The instance itself is found for its own template...
+  let found = derived_instance
+    .find_instance_in_prototype_chain(scope, derived)
+    .unwrap();
+  assert_eq!(found, derived_instance);
+
+  // ...and also for the template it inherits from.
+  let found = derived_instance
+    .find_instance_in_prototype_chain(scope, base)
+    .unwrap();
+  assert_eq!(found, derived_instance);
+
+  // An unrelated template is not found anywhere in the chain.
+  let unrelated = v8::FunctionTemplate::new(scope, fortytwo_callback);
+  assert!(
+    derived_instance
+      .find_instance_in_prototype_chain(scope, unrelated)
+      .is_none()
+  );
+}
+
+#[test]
+fn context_tagged_embedder_data() {
+  use std::ffi::c_void;
+
+  const TAG_A: u16 = 1;
+  const TAG_B: u16 = 2;
+
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+
+  let value_a: u64 = 0xabcd;
+  let value_b: u64 = 0x1234;
+
+  unsafe {
+    context.set_aligned_pointer_in_embedder_data_with_tag(
+      0,
+      std::ptr::from_ref(&value_a) as *mut c_void,
+      TAG_A,
+    );
+    context.set_aligned_pointer_in_embedder_data_with_tag(
+      1,
+      std::ptr::from_ref(&value_b) as *mut c_void,
+      TAG_B,
+    );
+  }
+
+  let actual_a =
+    context.get_aligned_pointer_from_embedder_data_with_tag(0, TAG_A);
+  assert_eq!(unsafe { *actual_a.cast::<u64>() }, value_a);
+
+  let actual_b =
+    context.get_aligned_pointer_from_embedder_data_with_tag(1, TAG_B);
+  assert_eq!(unsafe { *actual_b.cast::<u64>() }, value_b);
+
+  // The untagged accessors round-trip through the default tag.
+  let value_c: u64 = 0x5678;
+  unsafe {
+    context.set_aligned_pointer_in_embedder_data(
+      2,
+      std::ptr::from_ref(&value_c) as *mut c_void,
+    );
+  }
+  let actual_c = context.get_aligned_pointer_from_embedder_data_with_tag(
+    2,
+    v8::Context::EMBEDDER_DATA_TAG_DEFAULT,
+  );
+  assert_eq!(unsafe { *actual_c.cast::<u64>() }, value_c);
+
+  // The largest valid tag is accepted, i.e. the range check is not off by one.
+  let value_d: u64 = 0x9abc;
+  let max_tag = v8::Context::EMBEDDER_DATA_TAG_COUNT - 1;
+  unsafe {
+    context.set_aligned_pointer_in_embedder_data_with_tag(
+      3,
+      std::ptr::from_ref(&value_d) as *mut c_void,
+      max_tag,
+    );
+  }
+  let actual_d =
+    context.get_aligned_pointer_from_embedder_data_with_tag(3, max_tag);
+  assert_eq!(unsafe { *actual_d.cast::<u64>() }, value_d);
+
+  context.clear_all_slots();
+}
+
+// V8 only detects a tag mismatch when the sandbox is enabled; without it the
+// tag is ignored and the stored pointer is returned regardless.
+#[test]
+#[cfg(feature = "v8_enable_sandbox")]
+fn context_embedder_data_tag_mismatch_reads_null() {
+  use std::ffi::c_void;
+
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+
+  let value: u64 = 0xabcd;
+  unsafe {
+    context.set_aligned_pointer_in_embedder_data_with_tag(
+      0,
+      std::ptr::from_ref(&value) as *mut c_void,
+      1,
+    );
+  }
+
+  // Reading with the tag it was written with returns the pointer...
+  let matching = context.get_aligned_pointer_from_embedder_data_with_tag(0, 1);
+  assert_eq!(unsafe { *matching.cast::<u64>() }, value);
+
+  // ...and reading with any other tag returns null rather than the pointer or
+  // some arbitrary value.
+  let mismatched =
+    context.get_aligned_pointer_from_embedder_data_with_tag(0, 2);
+  assert!(mismatched.is_null());
+
+  context.clear_all_slots();
+}
+
+#[test]
+#[should_panic(expected = "embedder data tag 15 is out of range")]
+fn context_embedder_data_tag_out_of_range_panics_on_set() {
+  use std::ffi::c_void;
+
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+
+  let value: u64 = 0xabcd;
+  // V8 would abort the process here; the range check turns it into a panic.
+  unsafe {
+    context.set_aligned_pointer_in_embedder_data_with_tag(
+      0,
+      std::ptr::from_ref(&value) as *mut c_void,
+      v8::Context::EMBEDDER_DATA_TAG_COUNT,
+    );
+  }
+}
+
+#[test]
+#[should_panic(expected = "embedder data tag 99 is out of range")]
+fn context_embedder_data_tag_out_of_range_panics_on_get() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+
+  context.get_aligned_pointer_from_embedder_data_with_tag(0, 99);
 }
