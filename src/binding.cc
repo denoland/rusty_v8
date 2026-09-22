@@ -7,6 +7,8 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <span>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -262,6 +264,11 @@ void v8__Isolate__ClearKeptObjects(v8::Isolate* isolate) {
 
 void v8__Isolate__LowMemoryNotification(v8::Isolate* isolate) {
   isolate->LowMemoryNotification();
+}
+
+void v8__Isolate__ContextDisposedNotification(
+    v8::Isolate* isolate, v8::ContextDependants dependants) {
+  isolate->ContextDisposedNotification(dependants);
 }
 
 void v8__Isolate__SetIdle(v8::Isolate* isolate, bool is_idle) {
@@ -700,6 +707,16 @@ void v8__ScriptCompiler__CachedData__DELETE(
   delete self;
 }
 
+int v8__ScriptCompiler__CachedData__CompatibilityCheck(
+    v8::ScriptCompiler::CachedData* self, v8::Isolate* isolate) {
+  return static_cast<int>(self->CompatibilityCheck(isolate));
+}
+
+bool v8__ScriptCompiler__CompileOptionsIsValid(int compile_options) {
+  return v8::ScriptCompiler::CompileOptionsIsValid(
+      static_cast<v8::ScriptCompiler::CompileOptions>(compile_options));
+}
+
 const v8::ScriptCompiler::CachedData* v8__ScriptCompiler__Source__GetCachedData(
     const v8::ScriptCompiler::Source* source) {
   return source->GetCachedData();
@@ -793,6 +810,10 @@ bool v8__Data__IsNumber(const v8::Data& self) {
 
 bool v8__Data__IsObjectTemplate(const v8::Data& self) {
   return self.IsObjectTemplate();
+}
+
+bool v8__Data__IsDictionaryTemplate(const v8::Data& self) {
+  return self.IsDictionaryTemplate();
 }
 
 bool v8__Data__IsPrimitive(const v8::Data& self) {
@@ -1137,6 +1158,22 @@ v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_byte_length(
   return u.release();
 }
 
+v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_mode(
+    v8::Isolate* isolate, size_t byte_length,
+    v8::BackingStoreInitializationMode initialization_mode,
+    v8::BackingStoreOnFailureMode on_failure) {
+  std::unique_ptr<v8::BackingStore> u = v8::ArrayBuffer::NewBackingStore(
+      isolate, byte_length, initialization_mode, on_failure);
+  return u.release();
+}
+
+v8::BackingStore* v8__ArrayBuffer__NewResizableBackingStore(
+    size_t byte_length, size_t max_byte_length) {
+  std::unique_ptr<v8::BackingStore> u =
+      v8::ArrayBuffer::NewResizableBackingStore(byte_length, max_byte_length);
+  return u.release();
+}
+
 v8::BackingStore* v8__ArrayBuffer__NewBackingStore__with_data(
     void* data, size_t byte_length, v8::BackingStore::DeleterCallback deleter,
     void* deleter_data) {
@@ -1171,6 +1208,14 @@ bool v8__ArrayBuffer__WasDetached(const v8::ArrayBuffer& self) {
   return ptr_to_local(&self)->WasDetached();
 }
 
+bool v8__ArrayBuffer__IsResizableByUserJavaScript(const v8::ArrayBuffer& self) {
+  return ptr_to_local(&self)->IsResizableByUserJavaScript();
+}
+
+bool v8__ArrayBuffer__IsImmutable(const v8::ArrayBuffer& self) {
+  return ptr_to_local(&self)->IsImmutable();
+}
+
 void v8__ArrayBuffer__SetDetachKey(const v8::ArrayBuffer& self,
                                    const v8::Value* key) {
   return ptr_to_local(&self)->SetDetachKey(ptr_to_local(key));
@@ -1182,6 +1227,10 @@ void* v8__BackingStore__Data(const v8::BackingStore& self) {
 
 size_t v8__BackingStore__ByteLength(const v8::BackingStore& self) {
   return self.ByteLength();
+}
+
+size_t v8__BackingStore__MaxByteLength(const v8::BackingStore& self) {
+  return self.MaxByteLength();
 }
 
 bool v8__BackingStore__IsShared(const v8::BackingStore& self) {
@@ -1543,6 +1592,25 @@ void v8__Template__SetIntrinsicDataProperty(const v8::Template& self,
                                             v8::PropertyAttribute attr) {
   ptr_to_local(&self)->SetIntrinsicDataProperty(ptr_to_local(&key), intrinsic,
                                                 attr);
+}
+
+void v8__Template__SetNativeDataProperty(const v8::Template& self,
+                                         const v8::Name& key,
+                                         v8::AccessorNameGetterCallback getter,
+                                         v8::AccessorNameSetterCallback setter,
+                                         const v8::Value* data_or_null,
+                                         v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetNativeDataProperty(ptr_to_local(&key), getter, setter,
+                                             ptr_to_local(data_or_null), attr);
+}
+
+void v8__Template__SetLazyDataProperty(const v8::Template& self,
+                                       const v8::Name& key,
+                                       v8::AccessorNameGetterCallback getter,
+                                       const v8::Value* data_or_null,
+                                       v8::PropertyAttribute attr) {
+  ptr_to_local(&self)->SetLazyDataProperty(ptr_to_local(&key), getter,
+                                           ptr_to_local(data_or_null), attr);
 }
 
 const v8::ObjectTemplate* v8__ObjectTemplate__New(
@@ -2272,6 +2340,21 @@ v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewDefaultAllocator() {
   return v8::ArrayBuffer::Allocator::NewDefaultAllocator();
 }
 
+// Returns nullptr unless V8 was built with pointer compression in multi-cage
+// mode, which is the only configuration in which V8 declares the group-scoped
+// overload.
+v8::ArrayBuffer::Allocator*
+v8__ArrayBuffer__Allocator__NewDefaultAllocator__with_group(
+    const v8::IsolateGroup& group) {
+#if defined(V8_COMPRESS_POINTERS) && \
+    !defined(V8_COMPRESS_POINTERS_IN_SHARED_CAGE)
+  return v8::ArrayBuffer::Allocator::NewDefaultAllocator(group);
+#else
+  (void)group;
+  return nullptr;
+#endif
+}
+
 v8::ArrayBuffer::Allocator* v8__ArrayBuffer__Allocator__NewRustAllocator(
     void* handle, const RustAllocatorVtable* vtable) {
   return new RustAllocator(handle, vtable);
@@ -2284,6 +2367,13 @@ void v8__ArrayBuffer__Allocator__DELETE(v8::ArrayBuffer::Allocator* self) {
 const v8::ArrayBuffer* v8__ArrayBuffer__New__with_byte_length(
     v8::Isolate* isolate, size_t byte_length) {
   return local_to_ptr(v8::ArrayBuffer::New(isolate, byte_length));
+}
+
+const v8::ArrayBuffer* v8__ArrayBuffer__MaybeNew(
+    v8::Isolate* isolate, size_t byte_length,
+    v8::BackingStoreInitializationMode initialization_mode) {
+  return maybe_local_to_ptr(
+      v8::ArrayBuffer::MaybeNew(isolate, byte_length, initialization_mode));
 }
 
 const v8::ArrayBuffer* v8__ArrayBuffer__New__with_backing_store(
@@ -2299,6 +2389,11 @@ size_t v8__ArrayBuffer__ByteLength(const v8::ArrayBuffer& self) {
 const v8::DataView* v8__DataView__New(const v8::ArrayBuffer& ab, size_t offset,
                                       size_t length) {
   return local_to_ptr(v8::DataView::New(ptr_to_local(&ab), offset, length));
+}
+
+const v8::DataView* v8__DataView__New__with_shared_buffer(
+    const v8::SharedArrayBuffer& sab, size_t offset, size_t length) {
+  return local_to_ptr(v8::DataView::New(ptr_to_local(&sab), offset, length));
 }
 
 struct InternalFieldData {
@@ -2407,6 +2502,13 @@ void v8__Context__SetPromiseHooks(v8::Context& self,
   ptr_to_local(&self)->SetPromiseHooks(
       ptr_to_local(init_hook), ptr_to_local(before_hook),
       ptr_to_local(after_hook), ptr_to_local(resolve_hook));
+}
+
+void v8__Context__SetTemporalHostSystemUTCEpochNanosecondsCallback(
+    v8::Context& self,
+    v8::Context::TemporalHostSystemUTCEpochNanosecondsCallback callback) {
+  ptr_to_local(&self)->SetTemporalHostSystemUTCEpochNanosecondsCallback(
+      callback);
 }
 
 const v8::Value* v8__Context__GetSecurityToken(const v8::Context& self) {
@@ -2711,6 +2813,40 @@ void v8__FunctionTemplate__ReadOnlyPrototype(const v8::FunctionTemplate& self) {
 
 void v8__FunctionTemplate__RemovePrototype(const v8::FunctionTemplate& self) {
   ptr_to_local(&self)->RemovePrototype();
+}
+
+bool v8__FunctionTemplate__HasInstance(const v8::FunctionTemplate& self,
+                                       const v8::Value& object) {
+  return ptr_to_local(&self)->HasInstance(ptr_to_local(&object));
+}
+
+const v8::DictionaryTemplate* v8__DictionaryTemplate__New(
+    v8::Isolate* isolate, const char* const* names, const size_t* name_lengths,
+    size_t names_len) {
+  std::vector<std::string_view> vec;
+  vec.reserve(names_len);
+  for (size_t i = 0; i < names_len; i++) {
+    vec.emplace_back(names[i], name_lengths[i]);
+  }
+  return local_to_ptr(v8::DictionaryTemplate::New(
+      isolate, std::span<const std::string_view>(vec.data(), vec.size())));
+}
+
+const v8::Object* v8__DictionaryTemplate__NewInstance(
+    const v8::DictionaryTemplate& self, const v8::Context& context,
+    const v8::Value* const* values, size_t values_len) {
+  std::vector<v8::MaybeLocal<v8::Value>> vec;
+  vec.reserve(values_len);
+  for (size_t i = 0; i < values_len; i++) {
+    if (values[i] == nullptr) {
+      vec.emplace_back();
+    } else {
+      vec.emplace_back(ptr_to_local(values[i]));
+    }
+  }
+  return local_to_ptr(ptr_to_local(&self)->NewInstance(
+      ptr_to_local(&context),
+      std::span<v8::MaybeLocal<v8::Value>>(vec.data(), vec.size())));
 }
 
 const v8::ObjectTemplate* v8__FunctionTemplate__PrototypeTemplate(
@@ -3030,6 +3166,16 @@ void v8__AllowJavascriptExecutionScope__DESTRUCT(
 EACH_TYPED_ARRAY(V)
 #undef V
 
+#define V(NAME)                                                      \
+  const v8::NAME* v8__##NAME##__New__with_shared_buffer(             \
+      const v8::SharedArrayBuffer& buf_ptr, size_t byte_offset,      \
+      size_t length) {                                               \
+    return local_to_ptr(                                             \
+        v8::NAME::New(ptr_to_local(&buf_ptr), byte_offset, length)); \
+  }
+EACH_TYPED_ARRAY(V)
+#undef V
+
 const v8::Script* v8__Script__Compile(const v8::Context& context,
                                       const v8::String& source,
                                       const v8::ScriptOrigin& origin) {
@@ -3158,6 +3304,19 @@ v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_byte_length(
   std::unique_ptr<v8::BackingStore> u =
       v8::SharedArrayBuffer::NewBackingStore(isolate, byte_length);
   return u.release();
+}
+
+v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_mode(
+    v8::Isolate* isolate, size_t byte_length,
+    v8::BackingStoreInitializationMode initialization_mode,
+    v8::BackingStoreOnFailureMode on_failure) {
+  std::unique_ptr<v8::BackingStore> u = v8::SharedArrayBuffer::NewBackingStore(
+      isolate, byte_length, initialization_mode, on_failure);
+  return u.release();
+}
+
+void* v8__SharedArrayBuffer__Data(const v8::SharedArrayBuffer& self) {
+  return ptr_to_local(&self)->Data();
 }
 
 v8::BackingStore* v8__SharedArrayBuffer__NewBackingStore__with_data(

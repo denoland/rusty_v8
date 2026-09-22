@@ -9,6 +9,7 @@ use crate::ScriptOrigin;
 use crate::String;
 use crate::UniqueRef;
 use crate::isolate::RealIsolate;
+use crate::scope::GetIsolate;
 use crate::scope::PinScope;
 use crate::support::int;
 use crate::{Context, Script, UnboundScript};
@@ -29,6 +30,11 @@ unsafe extern "C" {
     length: i32,
   ) -> *mut CachedData<'a>;
   fn v8__ScriptCompiler__CachedData__DELETE<'a>(this: *mut CachedData<'a>);
+  fn v8__ScriptCompiler__CachedData__CompatibilityCheck<'a>(
+    this: *mut CachedData<'a>,
+    isolate: *mut RealIsolate,
+  ) -> int;
+  fn v8__ScriptCompiler__CompileOptionsIsValid(options: int) -> bool;
   fn v8__ScriptCompiler__CompileModule(
     isolate: *mut RealIsolate,
     source: *mut Source,
@@ -125,6 +131,63 @@ impl<'a> CachedData<'a> {
   pub fn rejected(&self) -> bool {
     self.rejected
   }
+
+  /// Checks whether this cached data can be loaded in the given isolate, and
+  /// reports why not if it cannot.
+  #[inline(always)]
+  pub fn compatibility_check(
+    &mut self,
+    scope: &PinScope<'_, '_, ()>,
+  ) -> CompatibilityCheckResult {
+    let result = unsafe {
+      v8__ScriptCompiler__CachedData__CompatibilityCheck(
+        self,
+        scope.get_isolate_ptr(),
+      )
+    };
+    CompatibilityCheckResult::from_int(result)
+  }
+}
+
+/// The outcome of [`CachedData::compatibility_check`].
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CompatibilityCheckResult {
+  /// The cached data can be used.
+  Success = 0,
+  /// The data does not start with V8's code cache magic number.
+  MagicNumberMismatch = 1,
+  /// The data was produced by a different version of V8.
+  VersionMismatch = 2,
+  /// The data was produced from a different source string.
+  SourceMismatch = 3,
+  /// The data was produced with a different set of V8 flags.
+  FlagsMismatch = 5,
+  /// The data's payload checksum does not match.
+  ChecksumMismatch = 6,
+  /// The data's header is malformed.
+  InvalidHeader = 7,
+  /// The data's recorded length does not match its actual length.
+  LengthMismatch = 8,
+  /// The data was produced against a different read-only snapshot.
+  ReadOnlySnapshotChecksumMismatch = 9,
+}
+
+impl CompatibilityCheckResult {
+  fn from_int(value: int) -> Self {
+    match value {
+      0 => Self::Success,
+      1 => Self::MagicNumberMismatch,
+      2 => Self::VersionMismatch,
+      3 => Self::SourceMismatch,
+      5 => Self::FlagsMismatch,
+      6 => Self::ChecksumMismatch,
+      7 => Self::InvalidHeader,
+      8 => Self::LengthMismatch,
+      9 => Self::ReadOnlySnapshotChecksumMismatch,
+      other => panic!("unknown CompatibilityCheckResult: {other}"),
+    }
+  }
 }
 
 impl std::ops::Deref for CachedData<'_> {
@@ -208,6 +271,16 @@ bitflags! {
     const ConsumeCompileHints = 1 << 3;
     const FollowCompileHintsMagicComment = 1 << 4;
     const FollowCompileHintsPerFunctionMagicComment = 1 << 5;
+  }
+}
+
+impl CompileOptions {
+  /// Returns true if this combination of compile options is one that V8
+  /// accepts: producing and consuming a code cache are mutually exclusive, as
+  /// are producing and consuming compile hints.
+  #[inline(always)]
+  pub fn is_valid(self) -> bool {
+    unsafe { v8__ScriptCompiler__CompileOptionsIsValid(self.bits()) }
   }
 }
 

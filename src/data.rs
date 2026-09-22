@@ -31,6 +31,7 @@ unsafe extern "C" {
   fn v8__Data__IsBigInt(this: *const Data) -> bool;
   fn v8__Data__IsBoolean(this: *const Data) -> bool;
   fn v8__Data__IsContext(this: *const Data) -> bool;
+  fn v8__Data__IsDictionaryTemplate(this: *const Data) -> bool;
   fn v8__Data__IsFixedArray(this: *const Data) -> bool;
   fn v8__Data__IsFunctionTemplate(this: *const Data) -> bool;
   fn v8__Data__IsModule(this: *const Data) -> bool;
@@ -65,6 +66,12 @@ impl Data {
   #[inline(always)]
   pub fn is_context(&self) -> bool {
     unsafe { v8__Data__IsContext(self) }
+  }
+
+  /// Returns true if this data is a `DictionaryTemplate`.
+  #[inline(always)]
+  pub fn is_dictionary_template(&self) -> bool {
+    unsafe { v8__Data__IsDictionaryTemplate(self) }
   }
 
   /// Returns true if this data is a `FixedArray`.
@@ -299,6 +306,7 @@ impl_from! { Signature for Data }
 impl_from! { Template for Data }
 impl_from! { FunctionTemplate for Data }
 impl_from! { ObjectTemplate for Data }
+impl_from! { DictionaryTemplate for Data }
 impl_from! { UnboundModuleScript for Data }
 impl_from! { UnboundScript for Data }
 impl_from! { Value for Data }
@@ -357,6 +365,7 @@ impl_partial_eq! { Signature for Data use identity }
 impl_partial_eq! { Template for Data use identity }
 impl_partial_eq! { FunctionTemplate for Data use identity }
 impl_partial_eq! { ObjectTemplate for Data use identity }
+impl_partial_eq! { DictionaryTemplate for Data use identity }
 impl_partial_eq! { UnboundModuleScript for Data use identity }
 impl_partial_eq! { External for Data use identity }
 impl_partial_eq! { Object for Data use identity }
@@ -686,6 +695,20 @@ impl_eq! { for ObjectTemplate }
 impl_partial_eq! { Data for ObjectTemplate use identity }
 impl_partial_eq! { Template for ObjectTemplate use identity }
 impl_partial_eq! { ObjectTemplate for ObjectTemplate use identity }
+
+/// A DictionaryTemplate is used to create dictionary-mode objects with a
+/// fixed, immutable set of property keys that is declared once, on
+/// construction of the template. The values for those properties are supplied
+/// separately, each time an instance is created.
+#[repr(C)]
+#[derive(Debug)]
+pub struct DictionaryTemplate(Opaque);
+
+impl_deref! { Data for DictionaryTemplate }
+impl_try_from! { Data for DictionaryTemplate if v => v.is_dictionary_template() }
+impl_eq! { for DictionaryTemplate }
+impl_partial_eq! { Data for DictionaryTemplate use identity }
+impl_partial_eq! { DictionaryTemplate for DictionaryTemplate use identity }
 
 /// A compiled JavaScript module, not yet tied to a Context.
 #[repr(C)]

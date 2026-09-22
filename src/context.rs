@@ -19,6 +19,13 @@ use std::ptr::NonNull;
 use std::ptr::{null, null_mut};
 use std::rc::Rc;
 
+/// Callback for getting high resolution timestamps in Temporal, as a number of
+/// nanoseconds since the Unix epoch.
+///
+/// See [`Context::set_temporal_host_system_utc_epoch_nanoseconds_callback`].
+pub type TemporalHostSystemUTCEpochNanosecondsCallback =
+  unsafe extern "C" fn(context: Local<Context>) -> i64;
+
 unsafe extern "C" {
   fn v8__Context__New(
     isolate: *mut RealIsolate,
@@ -31,6 +38,10 @@ unsafe extern "C" {
   fn v8__Context__DetachGlobal(this: *const Context);
   fn v8__Context__GetExtrasBindingObject(this: *const Context)
   -> *const Object;
+  fn v8__Context__SetTemporalHostSystemUTCEpochNanosecondsCallback(
+    this: *const Context,
+    callback: TemporalHostSystemUTCEpochNanosecondsCallback,
+  );
   fn v8__Context__GetNumberOfEmbedderDataFields(this: *const Context) -> u32;
   fn v8__Context__GetAlignedPointerFromEmbedderData(
     this: *const Context,
@@ -583,6 +594,22 @@ impl Context {
   pub fn set_security_token(&self, token: Local<Value>) {
     unsafe {
       v8__Context__SetSecurityToken(self, &*token);
+    }
+  }
+
+  /// Sets the callback used to obtain high resolution timestamps in Temporal.
+  ///
+  /// The callback is invoked with this context and returns the current time as
+  /// a number of nanoseconds since the Unix epoch.
+  #[inline(always)]
+  pub fn set_temporal_host_system_utc_epoch_nanoseconds_callback(
+    &self,
+    callback: TemporalHostSystemUTCEpochNanosecondsCallback,
+  ) {
+    unsafe {
+      v8__Context__SetTemporalHostSystemUTCEpochNanosecondsCallback(
+        self, callback,
+      );
     }
   }
 

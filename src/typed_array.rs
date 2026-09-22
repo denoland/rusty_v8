@@ -2,6 +2,7 @@
 use crate::ArrayBuffer;
 use crate::Local;
 use crate::PinScope;
+use crate::SharedArrayBuffer;
 use crate::TypedArray;
 use crate::binding::v8__TypedArray__kMaxByteLength;
 use crate::support::size_t;
@@ -35,6 +36,11 @@ macro_rules! typed_array {
           byte_offset: usize,
           length: usize,
         ) -> *const $name;
+        fn [< v8__ $name __New__with_shared_buffer >](
+          buf_ptr: *const SharedArrayBuffer,
+          byte_offset: usize,
+          length: usize,
+        ) -> *const $name;
       }
 
       impl $name {
@@ -46,6 +52,21 @@ macro_rules! typed_array {
           length: usize,
         ) -> Option<Local<'s, $name>> {
           unsafe { scope.cast_local(|_| [< v8__ $name __New >](&*buf, byte_offset, length)) }
+        }
+
+        #[doc = concat!("Creates a ", stringify!($name), " over a `SharedArrayBuffer`.")]
+        #[inline(always)]
+        pub fn new_with_shared_buffer<'s>(
+          scope: &PinScope<'s, '_>,
+          buf: Local<SharedArrayBuffer>,
+          byte_offset: usize,
+          length: usize,
+        ) -> Option<Local<'s, $name>> {
+          unsafe {
+            scope.cast_local(|_| {
+              [< v8__ $name __New__with_shared_buffer >](&*buf, byte_offset, length)
+            })
+          }
         }
 
         #[doc = concat!("The largest ", stringify!($name), " size that can be constructed using `new`.")]

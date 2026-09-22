@@ -26,6 +26,7 @@ use crate::String;
 use crate::Value;
 pub use crate::binding::v8__Intercepted as Intercepted;
 use crate::data::Data;
+use crate::data::DictionaryTemplate;
 use crate::data::FunctionTemplate;
 use crate::data::Name;
 use crate::data::ObjectTemplate;
@@ -35,7 +36,9 @@ use crate::isolate::RealIsolate;
 use crate::scope::PinScope;
 use crate::support::MapFnTo;
 use crate::support::int;
+use std::borrow::Cow;
 use std::convert::TryFrom;
+use std::ffi::c_char;
 use std::ptr::null;
 
 unsafe extern "C" {
@@ -51,6 +54,21 @@ unsafe extern "C" {
     intrinsic: Intrinsic,
     attr: PropertyAttribute,
   );
+  fn v8__Template__SetNativeDataProperty(
+    this: *const Template,
+    key: *const Name,
+    getter: AccessorNameGetterCallback,
+    setter: Option<AccessorNameSetterCallback>,
+    data_or_null: *const Value,
+    attr: PropertyAttribute,
+  );
+  fn v8__Template__SetLazyDataProperty(
+    this: *const Template,
+    key: *const Name,
+    getter: AccessorNameGetterCallback,
+    data_or_null: *const Value,
+    attr: PropertyAttribute,
+  );
 
   fn v8__Signature__New(
     isolate: *mut RealIsolate,
@@ -58,7 +76,7 @@ unsafe extern "C" {
   ) -> *const Signature;
   fn v8__FunctionTemplate__New(
     isolate: *mut RealIsolate,
-    callback: FunctionCallback,
+    callback: Option<FunctionCallback>,
     data_or_null: *const Value,
     signature_or_null: *const Signature,
     length: i32,
@@ -94,6 +112,23 @@ unsafe extern "C" {
   );
   fn v8__FunctionTemplate__ReadOnlyPrototype(this: *const FunctionTemplate);
   fn v8__FunctionTemplate__RemovePrototype(this: *const FunctionTemplate);
+  fn v8__FunctionTemplate__HasInstance(
+    this: *const FunctionTemplate,
+    object: *const Value,
+  ) -> bool;
+
+  fn v8__DictionaryTemplate__New(
+    isolate: *mut RealIsolate,
+    names: *const *const c_char,
+    name_lengths: *const usize,
+    names_len: usize,
+  ) -> *const DictionaryTemplate;
+  fn v8__DictionaryTemplate__NewInstance(
+    this: *const DictionaryTemplate,
+    context: *const Context,
+    values: *const *const Value,
+    values_len: usize,
+  ) -> *const Object;
 
   fn v8__ObjectTemplate__New(
     isolate: *mut RealIsolate,
@@ -650,6 +685,54 @@ impl Template {
     unsafe { v8__Template__Set(self, &*key, &*value, attr) }
   }
 
+  /// Sets a native data property on every instance created by this template.
+  ///
+  /// The `getter` callback is invoked whenever the property is read, and the
+  /// optional `setter` callback whenever it is written. `data` is passed
+  /// through to both callbacks on every invocation.
+  ///
+  /// Unlike [`Template::set_lazy_data_property`], the callbacks stay installed
+  /// and are consulted on every access.
+  #[inline(always)]
+  pub fn set_native_data_property(
+    &self,
+    key: Local<Name>,
+    configuration: AccessorConfiguration,
+  ) {
+    unsafe {
+      v8__Template__SetNativeDataProperty(
+        self,
+        &*key,
+        configuration.getter,
+        configuration.setter,
+        configuration.data.map_or_else(null, |p| &*p),
+        configuration.property_attribute,
+      );
+    }
+  }
+
+  /// Like [`Template::set_native_data_property`], but V8 replaces the native
+  /// data property with a real data property holding the returned value on
+  /// first access, so the getter runs at most once per instance.
+  #[inline(always)]
+  pub fn set_lazy_data_property(
+    &self,
+    key: Local<Name>,
+    getter: impl MapFnTo<AccessorNameGetterCallback>,
+    data: Option<Local<Value>>,
+    attr: PropertyAttribute,
+  ) {
+    unsafe {
+      v8__Template__SetLazyDataProperty(
+        self,
+        &*key,
+        getter.map_fn_to(),
+        data.map_or_else(null, |p| &*p),
+        attr,
+      );
+    }
+  }
+
   /// During template instantiation, sets the value with the
   /// intrinsic property from the correct context.
   #[inline(always)]
@@ -666,6 +749,17 @@ impl Template {
 }
 
 impl<'s> FunctionBuilder<'s, FunctionTemplate> {
+  /// Create a builder for a [`FunctionTemplate`] that has no call handler.
+  ///
+  /// This mirrors `v8::FunctionTemplate::New(isolate)` with a null callback,
+  /// and is useful when the template only serves to describe a class, i.e.
+  /// when only its instance template, prototype template or identity is of
+  /// interest.
+  #[inline(always)]
+  pub fn new_without_callback() -> Self {
+    FunctionBuilder::new_raw_optional(None)
+  }
+
   /// Set the function call signature. The default is no signature.
   #[inline(always)]
   pub fn signature(mut self, signature: Local<'s, Signature>) -> Self {
@@ -767,6 +861,16 @@ impl Signature {
 }
 
 impl FunctionTemplate {
+  /// Creates a function template without a call handler.
+  ///
+  /// See [`FunctionBuilder::new_without_callback`].
+  #[inline(always)]
+  pub fn new_without_callback<'s>(
+    scope: &PinScope<'s, '_, ()>,
+  ) -> Local<'s, FunctionTemplate> {
+    FunctionBuilder::<FunctionTemplate>::new_without_callback().build(scope)
+  }
+
   /// Create a FunctionBuilder to configure a FunctionTemplate.
   /// This is the same as FunctionBuilder::<FunctionTemplate>::new().
   #[inline(always)]
@@ -889,6 +993,110 @@ impl FunctionTemplate {
       v8__FunctionTemplate__SetAccessorProperty(
         self, &*key, getter, setter, attr,
       );
+    }
+  }
+
+  /// Returns true if the given object is an instance of this function
+  /// template.
+  #[inline(always)]
+  pub fn has_instance(&self, object: Local<Value>) -> bool {
+    unsafe { v8__FunctionTemplate__HasInstance(self, &*object) }
+  }
+}
+
+impl DictionaryTemplate {
+  /// Creates a new template, declaring the data properties that can be passed
+  /// on instantiation of the template. Properties can only be declared on
+  /// construction and are then immutable. Their values are passed when
+  /// creating an object via [`DictionaryTemplate::new_instance`].
+  ///
+  /// # Panics
+  ///
+  /// V8 internalizes the declared names as one-byte (Latin-1) strings, so a
+  /// name is only expressible if every one of its `char`s is at most
+  /// `U+00FF`. This function panics on a name containing any code point
+  /// beyond that; the property key would otherwise silently differ from the
+  /// string that was passed in.
+  ///
+  /// V8 also rejects — by aborting the process — any name that is a canonical
+  /// array index, such as `"0"`.
+  #[inline(always)]
+  pub fn new<'s>(
+    scope: &PinScope<'s, '_, ()>,
+    names: &[&str],
+  ) -> Local<'s, DictionaryTemplate> {
+    // The `std::string_view`s handed to V8 are internalized as one-byte
+    // strings, i.e. their bytes are read as Latin-1 rather than as UTF-8.
+    // ASCII is identical in both encodings and can be passed straight
+    // through; anything else has to be transcoded first, or "é" would end up
+    // as the two-character property name "Ã©".
+    let latin1: Vec<Cow<'_, [u8]>> = names
+      .iter()
+      .map(|name| {
+        if name.is_ascii() {
+          Cow::Borrowed(name.as_bytes())
+        } else {
+          Cow::Owned(
+            name
+              .chars()
+              .map(|c| {
+                u8::try_from(u32::from(c)).unwrap_or_else(|_| {
+                  panic!(
+                    "DictionaryTemplate property name {name:?} contains \
+                     U+{:04X}, which V8 cannot represent in a name declared \
+                     through this API",
+                    u32::from(c)
+                  )
+                })
+              })
+              .collect(),
+          )
+        }
+      })
+      .collect();
+    let ptrs: Vec<*const c_char> =
+      latin1.iter().map(|n| n.as_ptr().cast()).collect();
+    let lengths: Vec<usize> = latin1.iter().map(|n| n.len()).collect();
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__DictionaryTemplate__New(
+          sd.get_isolate_ptr(),
+          ptrs.as_ptr(),
+          lengths.as_ptr(),
+          names.len(),
+        )
+      })
+    }
+    .unwrap()
+  }
+
+  /// Creates a new instance of this template.
+  ///
+  /// `values` supplies the values of the properties declared when the template
+  /// was created, in declaration order. A `None` entry signals a non-existent
+  /// property, which is left out of the resulting object.
+  ///
+  /// `values` must have exactly one entry per declared property; V8 aborts the
+  /// process if it does not.
+  #[inline(always)]
+  pub fn new_instance<'s>(
+    &self,
+    scope: &PinScope<'s, '_>,
+    values: &[Option<Local<Value>>],
+  ) -> Option<Local<'s, Object>> {
+    let values: Vec<*const Value> = values
+      .iter()
+      .map(|v| v.map_or_else(null, |v| &*v as _))
+      .collect();
+    unsafe {
+      scope.cast_local(|sd| {
+        v8__DictionaryTemplate__NewInstance(
+          self,
+          sd.get_current_context(),
+          values.as_ptr(),
+          values.len(),
+        )
+      })
     }
   }
 }

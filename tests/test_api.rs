@@ -16958,3 +16958,630 @@ fn context_embedder_data_tag_out_of_range_panics_on_get() {
 
   context.get_aligned_pointer_from_embedder_data_with_tag(0, 99);
 }
+
+#[test]
+fn function_template_has_instance() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    let func = templ.get_function(scope).unwrap();
+    let instance = func.new_instance(scope, &[]).unwrap();
+    assert!(templ.has_instance(instance.into()));
+
+    let other = v8::Object::new(scope);
+    assert!(!templ.has_instance(other.into()));
+
+    let unrelated = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    assert!(!unrelated.has_instance(instance.into()));
+  }
+}
+
+#[test]
+fn function_template_without_callback() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let templ = v8::FunctionTemplate::new_without_callback(scope);
+    let name = v8::String::new(scope, "Klass").unwrap();
+    templ.set_class_name(name);
+
+    // The instance template is still usable even though there is no call
+    // handler, which is the main reason to build a callback-less template.
+    let key = v8::String::new(scope, "answer").unwrap();
+    let value = v8::Integer::new(scope, 42);
+    templ.instance_template(scope).set(key.into(), value.into());
+
+    let func = templ.get_function(scope).unwrap();
+    let instance = func.new_instance(scope, &[]).unwrap();
+    assert!(templ.has_instance(instance.into()));
+    assert_eq!(
+      instance
+        .get(scope, key.into())
+        .unwrap()
+        .int32_value(scope)
+        .unwrap(),
+      42
+    );
+
+    // The template is usable as a constructor from JavaScript.
+    let global = context.global(scope);
+    let ctor_key = v8::String::new(scope, "Klass").unwrap();
+    global.set(scope, ctor_key.into(), func.into()).unwrap();
+    assert_eq!(
+      eval(scope, "new Klass().answer")
+        .unwrap()
+        .int32_value(scope),
+      Some(42)
+    );
+    assert!(
+      eval(scope, "new Klass() instanceof Klass")
+        .unwrap()
+        .boolean_value(scope)
+    );
+  }
+}
+
+#[test]
+fn template_set_lazy_data_property() {
+  use std::sync::atomic::{AtomicUsize, Ordering};
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let getter = |scope: &mut v8::PinScope,
+                  _key: v8::Local<v8::Name>,
+                  args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue<v8::Value>| {
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+      assert_eq!(args.data().to_rust_string_lossy(scope), "data");
+      let value = v8::Integer::new(scope, 42);
+      rv.set(value.into());
+    };
+
+    let key = v8::String::new(scope, "lazy").unwrap();
+    let data = v8::String::new(scope, "data").unwrap();
+
+    // Available on ObjectTemplate...
+    let obj_templ = v8::ObjectTemplate::new(scope);
+    obj_templ.set_lazy_data_property(
+      key.into(),
+      getter,
+      Some(data.into()),
+      v8::PropertyAttribute::NONE,
+    );
+    let obj = obj_templ.new_instance(scope).unwrap();
+
+    let global = context.global(scope);
+    let obj_key = v8::String::new(scope, "obj").unwrap();
+    global.set(scope, obj_key.into(), obj.into()).unwrap();
+
+    assert_eq!(
+      eval(scope, "obj.lazy").unwrap().int32_value(scope),
+      Some(42)
+    );
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+    // The second read hits the materialized data property, not the getter.
+    assert_eq!(
+      eval(scope, "obj.lazy").unwrap().int32_value(scope),
+      Some(42)
+    );
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+
+    // ...and on FunctionTemplate, where it installs a static property on the
+    // constructor itself.
+    CALL_COUNT.store(0, Ordering::SeqCst);
+    let fn_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    fn_templ.set_lazy_data_property(
+      key.into(),
+      getter,
+      Some(data.into()),
+      v8::PropertyAttribute::NONE,
+    );
+    let func = fn_templ.get_function(scope).unwrap();
+    let fn_key = v8::String::new(scope, "Klass").unwrap();
+    global.set(scope, fn_key.into(), func.into()).unwrap();
+    assert_eq!(
+      eval(scope, "Klass.lazy").unwrap().int32_value(scope),
+      Some(42)
+    );
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 1);
+  }
+}
+
+#[test]
+fn template_set_native_data_property() {
+  use std::sync::atomic::{AtomicUsize, Ordering};
+  static CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let getter = |scope: &mut v8::PinScope,
+                  _key: v8::Local<v8::Name>,
+                  _args: v8::PropertyCallbackArguments,
+                  mut rv: v8::ReturnValue<v8::Value>| {
+      CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+      let value = v8::Integer::new(scope, 42);
+      rv.set(value.into());
+    };
+
+    // Reachable from FunctionTemplate, which previously had no binding for it.
+    let fn_templ = v8::FunctionTemplate::new(scope, fortytwo_callback);
+    let key = v8::String::new(scope, "native").unwrap();
+    fn_templ.set_native_data_property(
+      key.into(),
+      v8::AccessorConfiguration::new(getter),
+    );
+
+    let func = fn_templ.get_function(scope).unwrap();
+    let global = context.global(scope);
+    let fn_key = v8::String::new(scope, "Klass").unwrap();
+    global.set(scope, fn_key.into(), func.into()).unwrap();
+
+    assert_eq!(
+      eval(scope, "Klass.native").unwrap().int32_value(scope),
+      Some(42)
+    );
+    // Unlike a lazy data property, the callback runs on every access.
+    assert_eq!(
+      eval(scope, "Klass.native").unwrap().int32_value(scope),
+      Some(42)
+    );
+    assert_eq!(CALL_COUNT.load(Ordering::SeqCst), 2);
+  }
+}
+
+#[test]
+fn dictionary_template() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let templ = v8::DictionaryTemplate::new(scope, &["a", "b", "c"]);
+
+    let one = v8::Integer::new(scope, 1);
+    let two = v8::Integer::new(scope, 2);
+    let obj = templ
+      .new_instance(scope, &[Some(one.into()), None, Some(two.into())])
+      .unwrap();
+
+    let global = context.global(scope);
+    let key = v8::String::new(scope, "obj").unwrap();
+    global.set(scope, key.into(), obj.into()).unwrap();
+
+    assert_eq!(eval(scope, "obj.a").unwrap().int32_value(scope), Some(1));
+    // A `None` value means the property is not created at all.
+    assert!(eval(scope, "obj.b").unwrap().is_undefined());
+    assert!(!eval(scope, r#""b" in obj"#).unwrap().boolean_value(scope));
+    assert_eq!(eval(scope, "obj.c").unwrap().int32_value(scope), Some(2));
+    assert_eq!(
+      eval(scope, "Object.keys(obj).join(',')")
+        .unwrap()
+        .to_rust_string_lossy(scope),
+      "a,c"
+    );
+
+    // Round-trips through `Data`.
+    let data: v8::Local<v8::Data> = templ.into();
+    assert!(data.is_dictionary_template());
+    let back: v8::Local<v8::DictionaryTemplate> = data.try_into().unwrap();
+    assert_eq!(back, templ);
+  }
+}
+
+#[test]
+fn dictionary_template_non_ascii_name() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    // V8 reads the declared names as Latin-1, so the UTF-8 bytes of a name
+    // like "café" have to be transcoded before they are handed over, or the
+    // resulting key would be "cafÃ©" and neither lookup below would find it.
+    let templ = v8::DictionaryTemplate::new(scope, &["café", "naïve"]);
+
+    let one = v8::Integer::new(scope, 1);
+    let two = v8::Integer::new(scope, 2);
+    let obj = templ
+      .new_instance(scope, &[Some(one.into()), Some(two.into())])
+      .unwrap();
+
+    let key = v8::String::new(scope, "café").unwrap();
+    assert_eq!(
+      obj.get(scope, key.into()).unwrap().int32_value(scope),
+      Some(1)
+    );
+
+    let global = context.global(scope);
+    let name = v8::String::new(scope, "obj").unwrap();
+    global.set(scope, name.into(), obj.into()).unwrap();
+    assert_eq!(
+      eval(scope, "obj['naïve']").unwrap().int32_value(scope),
+      Some(2)
+    );
+    assert_eq!(
+      eval(scope, "Object.keys(obj).join(',')")
+        .unwrap()
+        .to_rust_string_lossy(scope),
+      "café,naïve"
+    );
+  }
+}
+
+#[test]
+#[should_panic(expected = "U+1F600")]
+fn dictionary_template_unrepresentable_name() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    // Code points above U+00FF cannot be expressed through this V8 API.
+    let _ = v8::DictionaryTemplate::new(scope, &["😀"]);
+  }
+}
+
+#[test]
+fn array_buffer_backing_store_modes() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let zeroed = v8::ArrayBuffer::new_backing_store_with_mode(
+      scope,
+      16,
+      v8::BackingStoreOnFailureMode::ReturnNull,
+    )
+    .unwrap();
+    assert_eq!(zeroed.byte_length(), 16);
+    assert!(zeroed.iter().all(|b| b.get() == 0));
+    assert!(!zeroed.is_shared());
+
+    // SAFETY: every byte is written before anything reads the backing store.
+    let uninit = unsafe {
+      v8::ArrayBuffer::new_backing_store_uninitialized(
+        scope,
+        16,
+        v8::BackingStoreOnFailureMode::ReturnNull,
+      )
+    }
+    .unwrap();
+    assert_eq!(uninit.byte_length(), 16);
+    for byte in uninit.iter() {
+      byte.set(7);
+    }
+    assert!(uninit.iter().all(|b| b.get() == 7));
+
+    // kReturnNull maps to a fallible Rust return rather than an OOM crash.
+    // Asking for more than the maximum is rejected outright, without V8
+    // attempting (and failing) a huge allocation first.
+    assert!(
+      v8::ArrayBuffer::new_backing_store_with_mode(
+        scope,
+        v8::ArrayBuffer::MAX_BYTE_LENGTH + 1,
+        v8::BackingStoreOnFailureMode::ReturnNull,
+      )
+      .is_none()
+    );
+  }
+}
+
+#[test]
+fn shared_array_buffer_backing_store_modes() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let bs = v8::SharedArrayBuffer::new_backing_store_with_mode(
+      scope,
+      8,
+      v8::BackingStoreOnFailureMode::ReturnNull,
+    )
+    .unwrap();
+    assert_eq!(bs.byte_length(), 8);
+    assert!(bs.is_shared());
+    assert!(bs.iter().all(|b| b.get() == 0));
+
+    // SAFETY: every byte is written before anything reads the backing store.
+    let uninit = unsafe {
+      v8::SharedArrayBuffer::new_backing_store_uninitialized(
+        scope,
+        8,
+        v8::BackingStoreOnFailureMode::ReturnNull,
+      )
+    }
+    .unwrap();
+    assert_eq!(uninit.byte_length(), 8);
+    for byte in uninit.iter() {
+      byte.set(3);
+    }
+    assert!(uninit.iter().all(|b| b.get() == 3));
+
+    assert!(
+      v8::SharedArrayBuffer::new_backing_store_with_mode(
+        scope,
+        v8::ArrayBuffer::MAX_BYTE_LENGTH + 1,
+        v8::BackingStoreOnFailureMode::ReturnNull,
+      )
+      .is_none()
+    );
+  }
+}
+
+#[test]
+fn array_buffer_maybe_new() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let ab = v8::ArrayBuffer::maybe_new(scope, 32).unwrap();
+    assert_eq!(ab.byte_length(), 32);
+    assert!(!ab.is_resizable_by_user_javascript());
+    assert!(!ab.is_immutable());
+
+    // SAFETY: every byte is written before the buffer is read or reaches
+    // JavaScript.
+    let uninit =
+      unsafe { v8::ArrayBuffer::maybe_new_uninitialized(scope, 32) }.unwrap();
+    assert_eq!(uninit.byte_length(), 32);
+    for byte in uninit.get_backing_store().iter() {
+      byte.set(0);
+    }
+
+    // `MAX_BYTE_LENGTH` is the largest length V8 accepts at all; anything
+    // beyond it yields `None` instead of an out-of-memory crash.
+    let max = v8::ArrayBuffer::MAX_BYTE_LENGTH;
+    assert!(max > 0);
+    assert_eq!(max, v8::TypedArray::MAX_BYTE_LENGTH);
+    assert!(v8::ArrayBuffer::maybe_new(scope, max + 1).is_none());
+  }
+}
+
+#[test]
+fn array_buffer_resizable_backing_store() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let bs = v8::ArrayBuffer::new_resizable_backing_store(8, 64);
+    assert_eq!(bs.byte_length(), 8);
+    assert_eq!(bs.max_byte_length(), 64);
+    assert!(bs.is_resizable_by_user_javascript());
+
+    let ab = v8::ArrayBuffer::with_backing_store(scope, &bs.make_shared());
+    assert!(ab.is_resizable_by_user_javascript());
+
+    let global = context.global(scope);
+    let key = v8::String::new(scope, "ab").unwrap();
+    global.set(scope, key.into(), ab.into()).unwrap();
+    assert_eq!(
+      eval(scope, "ab.maxByteLength").unwrap().int32_value(scope),
+      Some(64)
+    );
+    eval(scope, "ab.resize(32)").unwrap();
+    assert_eq!(ab.byte_length(), 32);
+
+    // A non-resizable backing store reports its own length as the maximum.
+    let fixed = v8::ArrayBuffer::new_backing_store(scope, 16);
+    assert_eq!(fixed.max_byte_length(), 16);
+    assert!(!fixed.is_resizable_by_user_javascript());
+  }
+}
+
+#[test]
+fn shared_array_buffer_data() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let sab = v8::SharedArrayBuffer::new(scope, 16).unwrap();
+    let data = sab.data().unwrap();
+    let backing_store = sab.get_backing_store();
+    assert_eq!(data, backing_store.data().unwrap());
+
+    backing_store[3].set(7);
+    let byte = unsafe { *data.cast::<u8>().as_ptr().add(3) };
+    assert_eq!(byte, 7);
+  }
+}
+
+#[test]
+fn typed_arrays_over_shared_array_buffer() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let sab = v8::SharedArrayBuffer::new(scope, 64).unwrap();
+
+    let u8a = v8::Uint8Array::new_with_shared_buffer(scope, sab, 0, 8).unwrap();
+    assert_eq!(u8a.byte_length(), 8);
+    assert_eq!(u8a.length(), 8);
+
+    let f64a =
+      v8::Float64Array::new_with_shared_buffer(scope, sab, 8, 4).unwrap();
+    assert_eq!(f64a.byte_length(), 32);
+    assert_eq!(f64a.byte_offset(), 8);
+    assert_eq!(f64a.length(), 4);
+
+    let i32a =
+      v8::Int32Array::new_with_shared_buffer(scope, sab, 40, 4).unwrap();
+    assert_eq!(i32a.length(), 4);
+
+    let big =
+      v8::BigInt64Array::new_with_shared_buffer(scope, sab, 56, 1).unwrap();
+    assert_eq!(big.length(), 1);
+
+    let dv = v8::DataView::new_with_shared_buffer(scope, sab, 16, 16);
+    assert_eq!(dv.byte_offset(), 16);
+    assert_eq!(dv.byte_length(), 16);
+
+    // Writes through the SharedArrayBuffer are visible in the views.
+    let backing_store = sab.get_backing_store();
+    backing_store[0].set(123);
+
+    let global = context.global(scope);
+    let key = v8::String::new(scope, "u8").unwrap();
+    global.set(scope, key.into(), u8a.into()).unwrap();
+    assert_eq!(eval(scope, "u8[0]").unwrap().int32_value(scope), Some(123));
+    assert!(
+      eval(scope, "u8.buffer instanceof SharedArrayBuffer")
+        .unwrap()
+        .boolean_value(scope)
+    );
+  }
+}
+
+#[test]
+fn default_allocator_for_isolate_group() {
+  let _setup_guard = setup::parallel_test();
+  let group = v8::IsolateGroup::get_default();
+  let allocator = v8::new_default_allocator_for_group(&group);
+  // V8 only offers the group-scoped allocator in multi-cage pointer
+  // compression builds, which is exactly when new groups can be created.
+  assert_eq!(
+    allocator.is_some(),
+    v8::IsolateGroup::can_create_new_groups()
+  );
+}
+
+#[test]
+fn cached_data_compatibility_check() {
+  const CODE: &str = "1 + 1";
+  let _setup_guard = setup::parallel_test();
+
+  let code_cache = {
+    let isolate = &mut v8::Isolate::new(Default::default());
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let code = v8::String::new(scope, CODE).unwrap();
+    let mut source = v8::script_compiler::Source::new(code, None);
+    let script = v8::script_compiler::compile_unbound_script(
+      scope,
+      &mut source,
+      v8::script_compiler::CompileOptions::EagerCompile,
+      v8::script_compiler::NoCacheReason::NoReason,
+    )
+    .unwrap();
+    script.create_code_cache().unwrap().to_vec()
+  };
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  let mut cached_data = v8::CachedData::new(&code_cache);
+  assert_eq!(
+    cached_data.compatibility_check(scope),
+    v8::script_compiler::CompatibilityCheckResult::Success
+  );
+
+  // Garbage does not carry V8's code cache magic number.
+  let mut garbage = v8::CachedData::new(&[0u8; 64]);
+  assert_ne!(
+    garbage.compatibility_check(scope),
+    v8::script_compiler::CompatibilityCheckResult::Success
+  );
+}
+
+#[test]
+fn compile_options_is_valid() {
+  use v8::script_compiler::CompileOptions;
+
+  assert!(CompileOptions::NoCompileOptions.is_valid());
+  assert!(CompileOptions::EagerCompile.is_valid());
+  assert!(CompileOptions::ConsumeCodeCache.is_valid());
+  assert!(CompileOptions::ProduceCompileHints.is_valid());
+  assert!(CompileOptions::ConsumeCompileHints.is_valid());
+  // Producing and consuming a code cache at the same time is not a valid
+  // combination.
+  assert!(
+    !(CompileOptions::ConsumeCodeCache | CompileOptions::EagerCompile)
+      .is_valid()
+  );
+  assert!(
+    !(CompileOptions::ProduceCompileHints
+      | CompileOptions::ConsumeCompileHints)
+      .is_valid()
+  );
+}
+
+#[test]
+fn context_disposed_notification() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let _context = v8::Context::new(scope, Default::default());
+  }
+  isolate.context_disposed_notification(v8::ContextDependants::NoDependants);
+  isolate.context_disposed_notification(v8::ContextDependants::SomeDependants);
+}
+
+#[test]
+fn temporal_host_system_utc_epoch_nanoseconds_callback() {
+  let _setup_guard = setup::parallel_test();
+
+  unsafe extern "C" fn callback(_context: v8::Local<v8::Context>) -> i64 {
+    1_700_000_000_000_000_000
+  }
+
+  let isolate = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(scope, Default::default());
+    context.set_temporal_host_system_utc_epoch_nanoseconds_callback(callback);
+    let scope = &mut v8::ContextScope::new(scope, context);
+
+    let now = eval(scope, "Temporal.Now.instant().epochNanoseconds.toString()")
+      .unwrap()
+      .to_rust_string_lossy(scope);
+    assert_eq!(now, "1700000000000000000");
+  }
+}

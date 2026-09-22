@@ -912,7 +912,7 @@ where
 
 /// A builder to construct the properties of a Function or FunctionTemplate.
 pub struct FunctionBuilder<'s, T> {
-  pub(crate) callback: FunctionCallback,
+  pub(crate) callback: Option<FunctionCallback>,
   pub(crate) data: Option<Local<'s, Value>>,
   pub(crate) signature: Option<Local<'s, Signature>>,
   pub(crate) length: i32,
@@ -930,6 +930,13 @@ impl<'s, T> FunctionBuilder<'s, T> {
 
   #[inline(always)]
   pub fn new_raw(callback: FunctionCallback) -> Self {
+    Self::new_raw_optional(Some(callback))
+  }
+
+  /// Create a new FunctionBuilder, optionally without a callback. V8 only
+  /// accepts a missing callback when building a `FunctionTemplate`.
+  #[inline(always)]
+  pub(crate) fn new_raw_optional(callback: Option<FunctionCallback>) -> Self {
     Self {
       callback,
       data: None,
@@ -984,7 +991,7 @@ impl<'s> FunctionBuilder<'s, Function> {
       scope.cast_local(|sd| {
         v8__Function__New(
           sd.get_current_context(),
-          self.callback,
+          self.callback.unwrap(),
           self.data.map_or_else(null, |p| &*p),
           self.length,
           self.constructor_behavior,
