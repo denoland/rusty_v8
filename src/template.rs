@@ -188,6 +188,7 @@ unsafe extern "C" {
   );
 
   fn v8__ObjectTemplate__SetImmutableProto(this: *const ObjectTemplate);
+  fn v8__ObjectTemplate__MarkAsUndetectable(this: *const ObjectTemplate);
 
   fn v8__ObjectTemplate__SetCallAsFunctionHandler(
     this: *const ObjectTemplate,
@@ -1277,6 +1278,18 @@ impl ObjectTemplate {
   #[inline(always)]
   pub fn set_immutable_proto(&self) {
     unsafe { v8__ObjectTemplate__SetImmutableProto(self) };
+  }
+
+  /// Marks instances of this template as "undetectable" objects — the
+  /// `[[IsHTMLDDA]]`-style shape used by legacy host objects like
+  /// `document.all`: `typeof` reports `"undefined"`, the object is falsy in
+  /// boolean context and loosely equal to `null`/`undefined`, while property
+  /// access and calls on it behave normally.
+  ///
+  /// See <https://tc39.es/ecma262/#sec-IsHTMLDDA-internal-slot-to-boolean>.
+  #[inline(always)]
+  pub fn mark_as_undetectable(&self) {
+    unsafe { v8__ObjectTemplate__MarkAsUndetectable(self) };
   }
 
   /// Sets the callback to be used when calling instances created from this
