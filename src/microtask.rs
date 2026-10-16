@@ -70,6 +70,7 @@ impl MicrotaskQueue {
     isolate: &mut Isolate,
     microtask: Local<Function>,
   ) {
+    crate::handle::assert_locals_in_isolate(isolate);
     unsafe {
       v8__MicrotaskQueue__EnqueueMicrotask(
         isolate.as_real_ptr(),

@@ -1258,6 +1258,7 @@ pub struct ValueView<'s>(
 impl<'s> ValueView<'s> {
   #[inline(always)]
   pub fn new(isolate: &mut Isolate, string: Local<'s, String>) -> Self {
+    crate::handle::assert_locals_in_isolate(isolate);
     // SAFETY: Local<'s, String> guarantees the V8 string is rooted in a
     // HandleScope that lives for at least 's.  Deref on Local erases the
     // scope lifetime, so we recover it via pointer cast.

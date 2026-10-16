@@ -16,6 +16,7 @@
 use crate::CallbackScope;
 use crate::Context;
 use crate::Isolate;
+use crate::IsolateHandle;
 use crate::Local;
 use crate::PinScope;
 use crate::StackTrace;
@@ -1240,6 +1241,7 @@ pub struct RawV8Inspector(Opaque);
 pub struct V8Inspector {
   raw: UniqueRef<RawV8Inspector>,
   _client: V8InspectorClient,
+  isolate: IsolateHandle,
 }
 
 impl V8Inspector {
@@ -1256,6 +1258,7 @@ impl V8Inspector {
     V8Inspector {
       raw,
       _client: client,
+      isolate: isolate.thread_safe_handle(),
     }
   }
 
@@ -1299,6 +1302,7 @@ impl V8Inspector {
     human_readable_name: StringView,
     aux_data: StringView,
   ) {
+    crate::handle::assert_locals_in_isolate_of(&self.isolate);
     unsafe {
       v8_inspector__V8Inspector__contextCreated(
         self.raw(),
@@ -1311,6 +1315,7 @@ impl V8Inspector {
   }
 
   pub fn context_destroyed(&self, context: Local<Context>) {
+    crate::handle::assert_locals_in_isolate_of(&self.isolate);
     unsafe {
       v8_inspector__V8Inspector__contextDestroyed(self.raw(), &*context)
     }
@@ -1401,6 +1406,7 @@ impl V8Inspector {
     stack_trace: UniquePtr<V8StackTrace>,
     script_id: i32,
   ) -> u32 {
+    crate::handle::assert_locals_in_isolate_of(&self.isolate);
     unsafe {
       v8_inspector__V8Inspector__exceptionThrown(
         self.raw(),
@@ -1421,6 +1427,7 @@ impl V8Inspector {
     &self,
     stack_trace: Option<Local<StackTrace>>,
   ) -> UniquePtr<V8StackTrace> {
+    crate::handle::assert_locals_in_isolate_of(&self.isolate);
     unsafe {
       UniquePtr::from_raw(v8_inspector__V8Inspector__createStackTrace(
         self.raw(),

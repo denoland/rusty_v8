@@ -8,7 +8,7 @@ use std::mem::forget;
 use std::mem::transmute;
 use std::ops::Deref;
 use std::ptr::NonNull;
-use std::sync::atomic::AtomicPtr;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use crate::Data;
@@ -421,6 +421,25 @@ impl<T> Global<T> {
     NonNull::new(isolate)
       .map_or(HandleHost::DisposedIsolate, HandleHost::Isolate)
   }
+
+  /// Panics unless the `Local`s of the scopes open on this thread belong to
+  /// the `Isolate` that hosts this handle.
+  pub(crate) fn assert_locals_in_same_isolate(&self) {
+    HandleHost::Scope.assert_match_host(self.get_handle_host(), None);
+  }
+}
+
+/// Panics unless the `Local`s of the scopes open on this thread belong to
+/// `isolate`. APIs that take an `Isolate` and `Local`s as separate arguments
+/// call this, because the scope rule doesn't tie the two together.
+pub(crate) fn assert_locals_in_isolate(isolate: &Isolate) {
+  HandleHost::Scope.assert_match_isolate(isolate);
+}
+
+/// Like [`assert_locals_in_isolate`], for an `Isolate` that may have been
+/// disposed.
+pub(crate) fn assert_locals_in_isolate_of(isolate_handle: &IsolateHandle) {
+  HandleHost::Scope.assert_match_host(isolate_handle.into(), None);
 }
 
 // A `Global` only touches V8 through methods that either take a scope or
@@ -1285,13 +1304,10 @@ impl FinalizerMap {
 
 /// Panics unless the `TracedReference` or `Eternal` whose isolate is `set_in`
 /// is empty or was set in `isolate`.
-fn assert_set_in_isolate(
-  set_in: &AtomicPtr<RealIsolate>,
-  isolate: *mut RealIsolate,
-) {
+fn assert_set_in_isolate(set_in: &AtomicUsize, isolate: &Isolate) {
   let set_in = set_in.load(Ordering::Relaxed);
   assert!(
-    set_in.is_null() || set_in == isolate,
+    set_in == 0 || set_in == isolate.global_liveness().as_ptr() as usize,
     "attempt to get a handle in an Isolate other than the one it was set in"
   );
 }
@@ -1302,8 +1318,10 @@ fn assert_set_in_isolate(
 #[repr(C)]
 pub struct TracedReference<T> {
   data: [u8; crate::binding::v8__TracedReference_SIZE],
-  // The isolate the reference was set in, or null if it is empty.
-  isolate: AtomicPtr<RealIsolate>,
+  // The address of the `IsolateLiveness` of the isolate the reference was set
+  // in, or 0 if it is empty. Unlike isolate addresses, these are never
+  // reused.
+  isolate: AtomicUsize,
   _phantom: PhantomData<T>,
 }
 
@@ -1314,7 +1332,7 @@ impl<T> TracedReference<T> {
     unsafe {
       v8__TracedReference__CONSTRUCT(this.as_mut_ptr() as _);
       std::ptr::addr_of_mut!((*this.as_mut_ptr()).isolate)
-        .write(AtomicPtr::new(std::ptr::null_mut()));
+        .write(AtomicUsize::new(0));
       this.assume_init()
     }
   }
@@ -1332,7 +1350,7 @@ impl<T> TracedReference<T> {
   ///
   /// Panics if the reference was set in another `Isolate`.
   pub fn get<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Option<Local<'s, T>> {
-    assert_set_in_isolate(&self.isolate, scope.get_isolate_ptr());
+    assert_set_in_isolate(&self.isolate, scope);
     unsafe {
       scope.cast_local(|sd| {
         v8__TracedReference__Get(
@@ -1351,8 +1369,8 @@ impl<T> TracedReference<T> {
     data: Option<Local<'s, T>>,
   ) {
     let isolate = match data {
-      Some(_) => scope.get_isolate_ptr(),
-      None => std::ptr::null_mut(),
+      Some(_) => scope.global_liveness().as_ptr() as usize,
+      None => 0,
     };
     self.isolate.store(isolate, Ordering::Relaxed);
     unsafe {
@@ -1381,10 +1399,10 @@ impl<T> Drop for TracedReference<T> {
 #[repr(C)]
 pub struct Eternal<T> {
   data: [u8; crate::binding::v8__Eternal_SIZE],
-  // The isolate the handle was set in, or null if it is empty. An eternal
-  // handle is an index into its isolate's table of eternal handles, which
-  // means nothing in another isolate.
-  isolate: AtomicPtr<RealIsolate>,
+  // The address of the `IsolateLiveness` of the isolate the handle was set
+  // in, or 0 if it is empty. An eternal handle is an index into its isolate's
+  // table of eternal handles, which means nothing in another isolate.
+  isolate: AtomicUsize,
   _phantom: PhantomData<T>,
 }
 
@@ -1394,13 +1412,13 @@ impl<T> Eternal<T> {
     unsafe {
       v8__Eternal__CONSTRUCT(this.as_mut_ptr() as _);
       std::ptr::addr_of_mut!((*this.as_mut_ptr()).isolate)
-        .write(AtomicPtr::new(std::ptr::null_mut()));
+        .write(AtomicUsize::new(0));
       this.assume_init()
     }
   }
 
   pub fn clear(&self) {
-    self.isolate.store(std::ptr::null_mut(), Ordering::Relaxed);
+    self.isolate.store(0, Ordering::Relaxed);
     unsafe {
       v8__Eternal__Clear(self as *const Self as *mut Eternal<Data>);
     }
@@ -1409,7 +1427,7 @@ impl<T> Eternal<T> {
   pub fn set<'s>(&self, scope: &PinScope<'s, '_, ()>, data: Local<'s, T>) {
     self
       .isolate
-      .store(scope.get_isolate_ptr(), Ordering::Relaxed);
+      .store(scope.global_liveness().as_ptr() as usize, Ordering::Relaxed);
     unsafe {
       v8__Eternal__Set(
         self as *const Self as *mut Eternal<Data>,
@@ -1423,7 +1441,7 @@ impl<T> Eternal<T> {
   ///
   /// Panics if the handle was set in another `Isolate`.
   pub fn get<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Option<Local<'s, T>> {
-    assert_set_in_isolate(&self.isolate, scope.get_isolate_ptr());
+    assert_set_in_isolate(&self.isolate, scope);
     unsafe {
       scope.cast_local(|sd| {
         v8__Eternal__Get(

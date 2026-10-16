@@ -168,6 +168,48 @@ fn eternal_of_other_isolate_panics() {
 }
 
 #[test]
+#[should_panic(
+  expected = "attempt to get a handle in an Isolate other than the one it was set in"
+)]
+fn eternal_of_disposed_isolate_panics() {
+  setup();
+  let eternal = v8::Eternal::empty();
+  {
+    let a = &mut v8::Isolate::new(Default::default());
+    v8::scope!(let scope, a);
+    let s = v8::String::new(scope, "from a").unwrap();
+    eternal.set(scope, s);
+  }
+  // `b` may be allocated where `a` was.
+  let b = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, b);
+  eternal.get(scope);
+}
+
+#[test]
+#[should_panic(
+  expected = "attempt to use Handle in an Isolate that is not its host"
+)]
+fn microtask_of_other_isolate_panics() {
+  setup();
+  let b = &mut v8::Isolate::new(Default::default());
+  // Created last, so that it is the current isolate.
+  let a = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, a);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+  let function = v8::Function::new(
+    scope,
+    |_: &mut v8::PinScope,
+     _: v8::FunctionCallbackArguments,
+     _: v8::ReturnValue<v8::Value>| {},
+  )
+  .unwrap();
+  // `enqueue_microtask()` takes the destination `Isolate` separately.
+  b.enqueue_microtask(function);
+}
+
+#[test]
 fn traced_reference_and_eternal_in_their_own_isolate() {
   setup();
   let isolate = &mut v8::Isolate::new(Default::default());

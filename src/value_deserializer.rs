@@ -484,6 +484,10 @@ impl ValueDeserializer<'_> {
     &self,
     context: Local<'t, Context>,
   ) -> Option<Local<'t, Value>> {
+    self
+      .value_deserializer_heap
+      .context
+      .assert_locals_in_same_isolate();
     self.value_deserializer_heap.read_value(context)
   }
 }

@@ -581,6 +581,10 @@ impl ValueSerializer<'_> {
     context: Local<Context>,
     value: Local<Value>,
   ) -> Option<bool> {
+    self
+      .value_serializer_heap
+      .context
+      .assert_locals_in_same_isolate();
     self.value_serializer_heap.write_value(context, value)
   }
 }
