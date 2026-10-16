@@ -797,6 +797,7 @@ pub struct V8InspectorSession {
   // this isn't actually used, but it needs to live
   // as long as the session
   _channel: Channel,
+  isolate: IsolateHandle,
 }
 
 impl V8InspectorSession {
@@ -845,6 +846,7 @@ impl V8InspectorSession {
     object_group: StringView,
     generate_preview: bool,
   ) -> Option<RemoteObject> {
+    crate::handle::assert_locals_in_isolate_of(&self.isolate);
     unsafe {
       UniqueRef::try_from_raw(v8_inspector__V8InspectorSession__wrapObject(
         self.raw.as_ptr(),
@@ -880,6 +882,7 @@ impl V8InspectorSession {
     ),
     UniquePtr<StringBuffer>,
   > {
+    crate::handle::assert_locals_in_isolate_of(&self.isolate);
     let mut error = std::ptr::null_mut();
     let mut value = std::ptr::null();
     let mut context = std::ptr::null();
@@ -1290,6 +1293,7 @@ impl V8Inspector {
     V8InspectorSession {
       raw,
       _channel: channel,
+      isolate: self.isolate.clone(),
     }
   }
 

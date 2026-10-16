@@ -180,7 +180,6 @@ fn eternal_of_disposed_isolate_panics() {
     let s = v8::String::new(scope, "from a").unwrap();
     eternal.set(scope, s);
   }
-  // `b` may be allocated where `a` was.
   let b = &mut v8::Isolate::new(Default::default());
   v8::scope!(let scope, b);
   eternal.get(scope);
@@ -207,6 +206,101 @@ fn microtask_of_other_isolate_panics() {
   .unwrap();
   // `enqueue_microtask()` takes the destination `Isolate` separately.
   b.enqueue_microtask(function);
+}
+
+#[test]
+#[should_panic(
+  expected = "attempt to use a MicrotaskQueue in an Isolate other than its own"
+)]
+fn microtask_queue_of_other_isolate_panics() {
+  setup();
+  let a = &mut v8::Isolate::new(Default::default());
+  let queue_a = v8::MicrotaskQueue::new(a, v8::MicrotasksPolicy::Explicit);
+  let b = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, b);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let function = v8::Function::new(
+      scope,
+      |_: &mut v8::PinScope,
+       _: v8::FunctionCallbackArguments,
+       _: v8::ReturnValue<v8::Value>| {},
+    )
+    .unwrap();
+    queue_a.enqueue_microtask(scope, function);
+  }
+}
+
+#[test]
+fn microtask_queue_in_its_own_isolate() {
+  setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let queue = v8::MicrotaskQueue::new(isolate, v8::MicrotasksPolicy::Explicit);
+  {
+    v8::scope!(let scope, isolate);
+    let context = v8::Context::new(
+      scope,
+      v8::ContextOptions {
+        microtask_queue: Some(&*queue as *const _ as *mut _),
+        ..Default::default()
+      },
+    );
+    context.set_microtask_queue(&queue);
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let function = v8::Function::new(
+      scope,
+      |_: &mut v8::PinScope,
+       _: v8::FunctionCallbackArguments,
+       _: v8::ReturnValue<v8::Value>| {},
+    )
+    .unwrap();
+    queue.enqueue_microtask(scope, function);
+    queue.perform_checkpoint(scope);
+    // The isolate's default queue.
+    let default_context = v8::Context::new(scope, Default::default());
+    default_context
+      .get_microtask_queue()
+      .unwrap()
+      .perform_checkpoint(scope);
+  }
+}
+
+struct NoopSerializer;
+
+impl v8::ValueSerializerImpl for NoopSerializer {
+  fn throw_data_clone_error<'s>(
+    &self,
+    scope: &mut v8::PinScope<'s, '_>,
+    message: v8::Local<'s, v8::String>,
+  ) {
+    let error = v8::Exception::error(scope, message);
+    scope.throw_exception(error);
+  }
+}
+
+#[test]
+#[should_panic(
+  expected = "attempt to use Handle in an Isolate that is not its host"
+)]
+fn value_serializer_of_other_isolate_panics_through_helper_trait() {
+  use v8::ValueSerializerHelper;
+  setup();
+  let a = &mut v8::Isolate::new(Default::default());
+  let serializer = {
+    v8::scope!(let scope, a);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    v8::ValueSerializer::new(scope, Box::new(NoopSerializer))
+  };
+  let b = &mut v8::Isolate::new(Default::default());
+  {
+    v8::scope!(let scope, b);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let value = v8::Object::new(scope);
+    ValueSerializerHelper::write_value(&serializer, context, value.into());
+  }
 }
 
 #[test]

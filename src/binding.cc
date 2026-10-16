@@ -29,7 +29,9 @@
 #include "v8-platform.h"
 #include "v8-profiler.h"
 #include "v8.h"
+#include "v8/src/execution/isolate-inl.h"
 #include "v8/src/execution/isolate.h"
+#include "v8/src/execution/microtask-queue.h"
 #include "v8/src/flags/flags.h"
 #include "v8/src/heap/base-page.h"
 #include "v8/src/heap/memory-chunk-inl.h"
@@ -2673,6 +2675,32 @@ v8::MicrotaskQueue* v8__MicrotaskQueueHandle__Get(
 void v8__MicrotaskQueue__PerformCheckpoint(v8::Isolate* isolate,
                                            v8::MicrotaskQueue* self) {
   self->PerformCheckpoint(isolate);
+}
+
+// Returns whether `self` is one of `isolate`'s microtask queues. Only the
+// queues of `isolate` are looked at, never `self`, which may belong to
+// another isolate.
+bool v8__MicrotaskQueue__BelongsTo(const v8::MicrotaskQueue* self,
+                                   v8::Isolate* isolate) {
+  namespace i = v8::internal;
+  const i::MicrotaskQueue* queue = static_cast<const i::MicrotaskQueue*>(self);
+  i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
+#ifdef V8_CPPGC_MICROTASK_QUEUE
+  if (queue == i_isolate->default_microtask_queue()) return true;
+  for (const auto& weak : i_isolate->microtask_queues()) {
+    if (weak.Get() == queue) return true;
+  }
+  return false;
+#else
+  // The queues form a ring that starts at the default queue.
+  const i::MicrotaskQueue* first = i_isolate->default_microtask_queue();
+  const i::MicrotaskQueue* current = first;
+  do {
+    if (current == queue) return true;
+    current = current->next();
+  } while (current != first);
+  return false;
+#endif
 }
 
 bool v8__MicrotaskQueue__IsRunningMicrotasks(v8::MicrotaskQueue* self) {
