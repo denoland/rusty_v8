@@ -114,15 +114,27 @@ fn scope_of_second_isolate_panics() {
   object_b.set(scope_b, key.into(), from_a.into());
 }
 
-// `TracedReference::get()` does not check which isolate the reference belongs
-// to, so it can produce a `Local` of one isolate in a scope of another without
-// opening a second scope. Debug builds catch that when the `Local` is used.
-#[cfg(debug_assertions)]
 #[test]
 #[should_panic(
-  expected = "a handle of one Isolate was used while a scope of another Isolate is open"
+  expected = "attempt to use Handle in an Isolate that is not its host"
 )]
-fn handle_of_other_isolate_panics_on_use_in_debug_builds() {
+fn global_of_local_in_other_isolate_panics() {
+  setup();
+  let b = &mut v8::Isolate::new(Default::default());
+  // Created last, so that it is the current isolate.
+  let a = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, a);
+  let from_a = v8::String::new(scope, "from a").unwrap();
+  // `Global::new()` takes an `Isolate`, not a scope, so the scope rule alone
+  // doesn't stop this.
+  let _global = v8::Global::new(b, from_a);
+}
+
+#[test]
+#[should_panic(
+  expected = "attempt to get a handle in an Isolate other than the one it was set in"
+)]
+fn traced_reference_of_other_isolate_panics() {
   setup();
   let a = &mut v8::Isolate::new(Default::default());
   let traced = {
@@ -133,8 +145,93 @@ fn handle_of_other_isolate_panics_on_use_in_debug_builds() {
 
   let b = &mut v8::Isolate::new(Default::default());
   v8::scope!(let scope, b);
-  let from_a = traced.get(scope).unwrap();
-  from_a.length();
+  traced.get(scope);
+}
+
+#[test]
+#[should_panic(
+  expected = "attempt to get a handle in an Isolate other than the one it was set in"
+)]
+fn eternal_of_other_isolate_panics() {
+  setup();
+  let a = &mut v8::Isolate::new(Default::default());
+  let eternal = v8::Eternal::empty();
+  {
+    v8::scope!(let scope, a);
+    let s = v8::String::new(scope, "from a").unwrap();
+    eternal.set(scope, s);
+  }
+
+  let b = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, b);
+  eternal.get(scope);
+}
+
+#[test]
+fn traced_reference_and_eternal_in_their_own_isolate() {
+  setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  let traced = v8::TracedReference::empty();
+  let eternal = v8::Eternal::empty();
+  {
+    v8::scope!(let scope, isolate);
+    assert!(traced.get(scope).is_none());
+  }
+  let mut traced = traced;
+  {
+    v8::scope!(let scope, isolate);
+    let s = v8::String::new(scope, "kept").unwrap();
+    traced.reset(scope, Some(s));
+    eternal.set(scope, s);
+  }
+  v8::scope!(let scope, isolate);
+  assert_eq!(traced.get(scope).unwrap().length(), 4);
+  assert_eq!(eternal.get(scope).unwrap().length(), 4);
+}
+
+// No safe API produces a `Local` of one isolate in a scope of another, so this
+// uses `Global::open()` to make one. Debug builds catch it when the `Local` is
+// used.
+#[cfg(debug_assertions)]
+fn foreign_local_test(f: impl FnOnce(&v8::PinScope, v8::Local<v8::String>)) {
+  setup();
+  let a = &mut v8::Isolate::new(Default::default());
+  let global = {
+    v8::scope!(let scope, a);
+    let s = v8::String::new(scope, "from a").unwrap();
+    v8::Global::new(scope, s)
+  };
+
+  let b = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, b);
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+  // SAFETY: none; this is the misuse the debug check exists to catch.
+  let from_a: v8::Local<v8::String> =
+    unsafe { std::mem::transmute(global.open(a)) };
+  f(scope, from_a);
+}
+
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(
+  expected = "a handle of one Isolate was used while a scope of another Isolate is open"
+)]
+fn handle_of_other_isolate_panics_on_deref_in_debug_builds() {
+  foreign_local_test(|_, from_a| {
+    from_a.length();
+  });
+}
+
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic(
+  expected = "a handle of one Isolate was used while a scope of another Isolate is open"
+)]
+fn handle_of_other_isolate_panics_in_a_slice_in_debug_builds() {
+  foreign_local_test(|scope, from_a| {
+    v8::Array::new_with_elements(scope, &[from_a.into()]);
+  });
 }
 
 #[cfg(debug_assertions)]

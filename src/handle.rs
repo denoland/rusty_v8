@@ -8,6 +8,8 @@ use std::mem::forget;
 use std::mem::transmute;
 use std::ops::Deref;
 use std::ptr::NonNull;
+use std::sync::atomic::AtomicPtr;
+use std::sync::atomic::Ordering;
 
 use crate::Data;
 use crate::Isolate;
@@ -206,11 +208,17 @@ impl<'s, T> Local<'s, T> {
 
   #[inline(always)]
   pub(crate) fn as_non_null(self) -> NonNull<T> {
+    #[cfg(debug_assertions)]
+    crate::scope::scope_owner::check_handle(self.0.cast());
     self.0
   }
 
   #[inline(always)]
   pub(crate) fn slice_into_raw(slice: &[Self]) -> &[*const T] {
+    #[cfg(debug_assertions)]
+    for local in slice {
+      crate::scope::scope_owner::check_handle(local.0.cast());
+    }
     unsafe { &*(slice as *const [Self] as *const [*const T]) }
   }
 }
@@ -697,9 +705,10 @@ impl HandleHost {
   /// Compares two `HandleHost` values, returning `true` if they refer to the
   /// same `Isolate`, or `false` if they refer to different isolates.
   ///
-  /// If the caller knows which `Isolate` the currently entered scope (if any)
-  /// belongs to, it should pass on this information via the second argument
-  /// (`scope_isolate_opt`).
+  /// A `Scope` host refers to the `Isolate` that owns the scopes open on this
+  /// thread (see "Isolates" in the `scope` module documentation). When no
+  /// scope is open, the caller can say which `Isolate` the handle's scope
+  /// belongs to via the second argument (`scope_isolate_opt`).
   ///
   /// # Panics
   ///
@@ -708,28 +717,28 @@ impl HandleHost {
   ///
   /// # Safety / Bugs
   ///
-  /// The current implementation is a bit too forgiving. If it cannot decide
-  /// whether two hosts refer to the same `Isolate`, it just returns `true`.
-  /// Note that this can only happen when the caller does _not_ provide a value
-  /// for the `scope_isolate_opt` argument.
+  /// If no scope is open and the caller does not provide a value for the
+  /// `scope_isolate_opt` argument, the `Isolate` of a `Scope` host is unknown,
+  /// and this function returns `true`. A `Local` can only exist outside of a
+  /// scope through `unsafe` code.
   fn match_host(
     self,
     other: Self,
     scope_isolate_opt: Option<&Isolate>,
   ) -> bool {
-    let scope_isolate_opt_nn = scope_isolate_opt
-      .map(|isolate| unsafe { NonNull::new_unchecked(isolate.as_real_ptr()) });
+    let scope_isolate_opt_nn =
+      crate::scope::scope_owner::current().or_else(|| {
+        scope_isolate_opt.map(|isolate| unsafe {
+          NonNull::new_unchecked(isolate.as_real_ptr())
+        })
+      });
     match (self, other, scope_isolate_opt_nn) {
       (Self::Scope, Self::Scope, _) => true,
       (Self::Isolate(ile1), Self::Isolate(ile2), _) => ile1 == ile2,
       (Self::Scope, Self::Isolate(ile1), Some(ile2)) => ile1 == ile2,
       (Self::Isolate(ile1), Self::Scope, Some(ile2)) => ile1 == ile2,
-      // TODO(pisciaureus): If the caller didn't provide a `scope_isolate_opt`
-      // value that works, we can't do a meaningful check. So all we do for now
-      // is pretend the Isolates match and hope for the best. This eventually
-      // needs to be tightened up.
-      (Self::Scope, Self::Isolate(_), _) => true,
-      (Self::Isolate(_), Self::Scope, _) => true,
+      (Self::Scope, Self::Isolate(_), None) => true,
+      (Self::Isolate(_), Self::Scope, None) => true,
       // Handles hosted in an Isolate that has been disposed aren't good for
       // anything, even if a pair of handles used to to be hosted in the same
       // now-disposed solate.
@@ -1274,21 +1283,38 @@ impl FinalizerMap {
   }
 }
 
+/// Panics unless the `TracedReference` or `Eternal` whose isolate is `set_in`
+/// is empty or was set in `isolate`.
+fn assert_set_in_isolate(
+  set_in: &AtomicPtr<RealIsolate>,
+  isolate: *mut RealIsolate,
+) {
+  let set_in = set_in.load(Ordering::Relaxed);
+  assert!(
+    set_in.is_null() || set_in == isolate,
+    "attempt to get a handle in an Isolate other than the one it was set in"
+  );
+}
+
 /// A traced handle without destructor that clears the handle. The embedder needs
 /// to ensure that the handle is not accessed once the V8 object has been
 /// reclaimed. For more details see BasicTracedReference.
 #[repr(C)]
 pub struct TracedReference<T> {
   data: [u8; crate::binding::v8__TracedReference_SIZE],
+  // The isolate the reference was set in, or null if it is empty.
+  isolate: AtomicPtr<RealIsolate>,
   _phantom: PhantomData<T>,
 }
 
 impl<T> TracedReference<T> {
   /// An empty TracedReference without storage cell.
   pub fn empty() -> Self {
-    let mut this = std::mem::MaybeUninit::uninit();
+    let mut this = std::mem::MaybeUninit::<Self>::uninit();
     unsafe {
       v8__TracedReference__CONSTRUCT(this.as_mut_ptr() as _);
+      std::ptr::addr_of_mut!((*this.as_mut_ptr()).isolate)
+        .write(AtomicPtr::new(std::ptr::null_mut()));
       this.assume_init()
     }
   }
@@ -1302,7 +1328,11 @@ impl<T> TracedReference<T> {
     this
   }
 
+  /// # Panics
+  ///
+  /// Panics if the reference was set in another `Isolate`.
   pub fn get<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Option<Local<'s, T>> {
+    assert_set_in_isolate(&self.isolate, scope.get_isolate_ptr());
     unsafe {
       scope.cast_local(|sd| {
         v8__TracedReference__Get(
@@ -1320,6 +1350,11 @@ impl<T> TracedReference<T> {
     scope: &PinScope<'s, '_, ()>,
     data: Option<Local<'s, T>>,
   ) {
+    let isolate = match data {
+      Some(_) => scope.get_isolate_ptr(),
+      None => std::ptr::null_mut(),
+    };
+    self.isolate.store(isolate, Ordering::Relaxed);
     unsafe {
       v8__TracedReference__Reset(
         self as *mut Self as *mut TracedReference<Data>,
@@ -1346,25 +1381,35 @@ impl<T> Drop for TracedReference<T> {
 #[repr(C)]
 pub struct Eternal<T> {
   data: [u8; crate::binding::v8__Eternal_SIZE],
+  // The isolate the handle was set in, or null if it is empty. An eternal
+  // handle is an index into its isolate's table of eternal handles, which
+  // means nothing in another isolate.
+  isolate: AtomicPtr<RealIsolate>,
   _phantom: PhantomData<T>,
 }
 
 impl<T> Eternal<T> {
   pub fn empty() -> Self {
-    let mut this = std::mem::MaybeUninit::uninit();
+    let mut this = std::mem::MaybeUninit::<Self>::uninit();
     unsafe {
       v8__Eternal__CONSTRUCT(this.as_mut_ptr() as _);
+      std::ptr::addr_of_mut!((*this.as_mut_ptr()).isolate)
+        .write(AtomicPtr::new(std::ptr::null_mut()));
       this.assume_init()
     }
   }
 
   pub fn clear(&self) {
+    self.isolate.store(std::ptr::null_mut(), Ordering::Relaxed);
     unsafe {
       v8__Eternal__Clear(self as *const Self as *mut Eternal<Data>);
     }
   }
 
   pub fn set<'s>(&self, scope: &PinScope<'s, '_, ()>, data: Local<'s, T>) {
+    self
+      .isolate
+      .store(scope.get_isolate_ptr(), Ordering::Relaxed);
     unsafe {
       v8__Eternal__Set(
         self as *const Self as *mut Eternal<Data>,
@@ -1374,7 +1419,11 @@ impl<T> Eternal<T> {
     }
   }
 
+  /// # Panics
+  ///
+  /// Panics if the handle was set in another `Isolate`.
   pub fn get<'s>(&self, scope: &PinScope<'s, '_, ()>) -> Option<Local<'s, T>> {
+    assert_set_in_isolate(&self.isolate, scope.get_isolate_ptr());
     unsafe {
       scope.cast_local(|sd| {
         v8__Eternal__Get(

@@ -144,7 +144,9 @@
 //! one, which corrupts both heaps. To rule that out, all scopes that are open on a thread at the
 //! same time must belong to the same `Isolate`: opening a `HandleScope`, `EscapableHandleScope` or
 //! `CallbackScope` while a scope of another `Isolate` is open on the same thread panics. Since a
-//! handle cannot outlive its scope, no handle of another `Isolate` can then be alive. Debug builds
+//! handle cannot outlive its scope, no handle of another `Isolate` can then be alive. Handles that
+//! outlive scopes (`Global`, `Weak`, `TracedReference` and `Eternal`) remember their `Isolate`, and
+//! panic when created from or turned into a `Local` in a scope of another `Isolate`. Debug builds
 //! additionally check, whenever a `Local` is dereferenced, that its value can be used in the
 //! `Isolate` that owns the open scopes: it lives in that `Isolate`'s heap, it is a value that all
 //! `Isolate`s of its `IsolateGroup` share (such as `undefined`), or it is a Smi.
@@ -197,6 +199,17 @@ pub(crate) mod scope_owner {
       );
     }
     OWNER.set((isolate.as_ptr(), depth + 1));
+  }
+
+  /// Returns the `Isolate` that owns the scopes open on this thread, if any.
+  #[inline]
+  pub(crate) fn current() -> Option<NonNull<RealIsolate>> {
+    let (owner, depth) = OWNER.get();
+    if depth == 0 {
+      None
+    } else {
+      NonNull::new(owner.cast_mut())
+    }
   }
 
   /// Called when a scope opened with `enter()` is closed.
