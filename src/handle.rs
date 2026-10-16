@@ -226,6 +226,8 @@ impl<T> Clone for Local<'_, T> {
 impl<T> Deref for Local<'_, T> {
   type Target = T;
   fn deref(&self) -> &T {
+    #[cfg(debug_assertions)]
+    crate::scope::scope_owner::check_handle(self.0.cast());
     unsafe { self.0.as_ref() }
   }
 }
