@@ -145,8 +145,9 @@
 //! same time must belong to the same `Isolate`: opening a `HandleScope`, `EscapableHandleScope` or
 //! `CallbackScope` while a scope of another `Isolate` is open on the same thread panics. Since a
 //! handle cannot outlive its scope, no handle of another `Isolate` can then be alive. Debug builds
-//! additionally check, whenever a `Local` is dereferenced, that its value lives in the heap of the
-//! `Isolate` that owns the open scopes.
+//! additionally check, whenever a `Local` is dereferenced, that its value can be used in the
+//! `Isolate` that owns the open scopes: it lives in that `Isolate`'s heap, it is a value that all
+//! `Isolate`s of its `IsolateGroup` share (such as `undefined`), or it is a Smi.
 use crate::{
   Context, Data, DataError, Function, FunctionCallbackInfo, Isolate, Local,
   Message, Object, OwnedIsolate, PromiseRejectMessage, PropertyCallbackInfo,
@@ -212,26 +213,26 @@ pub(crate) mod scope_owner {
 
   #[cfg(debug_assertions)]
   unsafe extern "C" {
-    fn v8__Data__GetOwnerIsolate(
+    fn v8__Data__IsCompatibleWithIsolate(
       this: *const crate::Data,
-    ) -> *const RealIsolate;
+      isolate: *const RealIsolate,
+    ) -> bool;
   }
 
-  /// Checks that the value of a dereferenced `Local` does not live in the heap
-  /// of an `Isolate` other than the one that owns the open scopes.
+  /// Checks that the value of a dereferenced `Local` can be used in the
+  /// `Isolate` that owns the open scopes.
   ///
   /// # Panics
   ///
-  /// Panics if it does.
+  /// Panics if it can't.
   #[cfg(debug_assertions)]
   pub(crate) fn check_handle(data: NonNull<crate::Data>) {
     let (owner, depth) = OWNER.get();
     if depth == 0 {
       return;
     }
-    // SAFETY: `data` points to a live handle.
-    let isolate = unsafe { v8__Data__GetOwnerIsolate(data.as_ptr()) };
-    if !isolate.is_null() && isolate != owner {
+    // SAFETY: `data` points to a live handle and `owner` to a live isolate.
+    if !unsafe { v8__Data__IsCompatibleWithIsolate(data.as_ptr(), owner) } {
       panic!(
         "a handle of one Isolate was used while a scope of another Isolate \
          is open"

@@ -151,3 +151,127 @@ fn handles_without_an_owner_pass_the_debug_check() {
   assert_eq!(v8::Integer::new(scope, 7).value(), 7);
   assert_eq!(v8::Number::new(scope, 7.5).value(), 7.5);
 }
+
+// The bindings behind the debug check, called directly so that they can be
+// tested in release builds and with values of several isolates at once.
+unsafe extern "C" {
+  fn v8__Data__MaybeGetIsolate(
+    this: *const v8::Data,
+  ) -> v8::UnsafeRawIsolatePtr;
+  fn v8__Data__IsCompatibleWithIsolate(
+    this: *const v8::Data,
+    isolate: v8::UnsafeRawIsolatePtr,
+  ) -> bool;
+  fn v8__Data__IsCompatibleWith(
+    this: *const v8::Data,
+    other: *const v8::Data,
+  ) -> bool;
+}
+
+fn addr(isolate: v8::UnsafeRawIsolatePtr) -> usize {
+  // SAFETY: `UnsafeRawIsolatePtr` is a transparent wrapper around a pointer.
+  unsafe { std::mem::transmute(isolate) }
+}
+
+struct Values {
+  isolate: v8::UnsafeRawIsolatePtr,
+  // A value in the isolate's own heap.
+  object: v8::Global<v8::Data>,
+  // A value in read-only space, which all isolates of a group share.
+  undefined: v8::Global<v8::Data>,
+  smi: v8::Global<v8::Data>,
+}
+
+impl Values {
+  fn new(isolate: &mut v8::OwnedIsolate) -> Self {
+    let ptr = unsafe { isolate.as_raw_isolate_ptr() };
+    v8::scope!(let scope, isolate);
+    let object = v8::String::new(scope, "on the heap").unwrap();
+    let undefined = v8::undefined(scope);
+    let smi = v8::Integer::new(scope, 7);
+    Self {
+      isolate: ptr,
+      object: v8::Global::new(scope, v8::Local::<v8::Data>::from(object)),
+      undefined: v8::Global::new(scope, v8::Local::<v8::Data>::from(undefined)),
+      smi: v8::Global::new(scope, v8::Local::<v8::Data>::from(smi)),
+    }
+  }
+}
+
+fn get(
+  isolate: &mut v8::Isolate,
+  global: &v8::Global<v8::Data>,
+) -> *const v8::Data {
+  unsafe { global.open(isolate) }
+}
+
+#[test]
+fn compatibility_of_values_of_isolates_in_one_group() {
+  setup();
+  let a = &mut v8::Isolate::new(Default::default());
+  let va = Values::new(a);
+  let b = &mut v8::Isolate::new(Default::default());
+  let vb = Values::new(b);
+
+  let a_object = get(a, &va.object);
+  let a_undefined = get(a, &va.undefined);
+  let a_smi = get(a, &va.smi);
+  let b_object = get(b, &vb.object);
+  let b_undefined = get(b, &vb.undefined);
+
+  unsafe {
+    assert_eq!(addr(v8__Data__MaybeGetIsolate(a_object)), addr(va.isolate));
+    assert!(v8__Data__MaybeGetIsolate(a_undefined).is_null());
+    assert!(v8__Data__MaybeGetIsolate(a_smi).is_null());
+
+    assert!(v8__Data__IsCompatibleWithIsolate(a_object, va.isolate));
+    assert!(!v8__Data__IsCompatibleWithIsolate(a_object, vb.isolate));
+    assert!(v8__Data__IsCompatibleWithIsolate(a_undefined, vb.isolate));
+    assert!(v8__Data__IsCompatibleWithIsolate(a_smi, vb.isolate));
+
+    assert!(v8__Data__IsCompatibleWith(a_object, a_object));
+    assert!(!v8__Data__IsCompatibleWith(a_object, b_object));
+    assert!(!v8__Data__IsCompatibleWith(b_object, a_object));
+    assert!(v8__Data__IsCompatibleWith(a_object, b_undefined));
+    assert!(v8__Data__IsCompatibleWith(b_undefined, a_object));
+    assert!(v8__Data__IsCompatibleWith(a_undefined, b_undefined));
+    assert!(v8__Data__IsCompatibleWith(a_smi, b_object));
+  }
+}
+
+#[test]
+fn compatibility_of_values_of_isolates_in_different_groups() {
+  setup();
+  if !v8::IsolateGroup::can_create_new_groups() {
+    eprintln!("skipped: V8 was built without support for multiple groups");
+    return;
+  }
+  let group1 = v8::IsolateGroup::create();
+  let group2 = v8::IsolateGroup::create();
+  let a = &mut v8::Isolate::new_with_group(&group1, Default::default());
+  let va = Values::new(a);
+  let a2 = &mut v8::Isolate::new_with_group(&group1, Default::default());
+  let va2 = Values::new(a2);
+  let b = &mut v8::Isolate::new_with_group(&group2, Default::default());
+  let vb = Values::new(b);
+
+  let a_object = get(a, &va.object);
+  let a_undefined = get(a, &va.undefined);
+  let a_smi = get(a, &va.smi);
+  let a2_undefined = get(a2, &va2.undefined);
+  let b_object = get(b, &vb.object);
+  let b_undefined = get(b, &vb.undefined);
+
+  unsafe {
+    assert!(v8__Data__IsCompatibleWithIsolate(a_undefined, va2.isolate));
+    assert!(!v8__Data__IsCompatibleWithIsolate(a_undefined, vb.isolate));
+    assert!(!v8__Data__IsCompatibleWithIsolate(a_object, vb.isolate));
+    assert!(v8__Data__IsCompatibleWithIsolate(a_smi, vb.isolate));
+
+    assert!(v8__Data__IsCompatibleWith(a_undefined, a2_undefined));
+    assert!(!v8__Data__IsCompatibleWith(a_undefined, b_undefined));
+    assert!(!v8__Data__IsCompatibleWith(a_object, b_undefined));
+    assert!(!v8__Data__IsCompatibleWith(b_object, a_undefined));
+    assert!(v8__Data__IsCompatibleWith(a_smi, b_undefined));
+  }
+}

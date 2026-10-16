@@ -142,23 +142,75 @@ extern "C" bool v8__V8__IsSandboxEnabled() {
   return v8::internal::SandboxIsEnabled();
 }
 
-// Returns the isolate whose heap holds the value of `self`, or nullptr if the
-// value is a Smi or lives in a space that isolates share (read-only space,
-// writable shared space). This uses internal APIs because V8 no longer exposes
-// a way to find the isolate a value belongs to.
-extern "C" const v8::Isolate* v8__Data__GetOwnerIsolate(const v8::Data& self) {
+namespace {
+
+// Returns the isolate whose heap holds `value`, or nullptr if `value` is a Smi
+// or lives in read-only or writable shared space. Those spaces belong to an
+// isolate group rather than to an isolate.
+const v8::internal::Isolate* MaybeGetIsolate(v8::internal::Address value) {
   namespace i = v8::internal;
-  i::Address value = i::ValueHelper::ValueAsAddress(&self);
   if (!i::Internals::HasHeapObjectTag(value)) return nullptr;
   const i::MemoryChunk* chunk = i::MemoryChunk::FromAddress(value);
   if (chunk->InReadOnlySpace() || chunk->InWritableSharedSpace()) {
     return nullptr;
   }
-  const i::Heap* heap = chunk->MetadataNoIsolateCheck()->heap();
-  return reinterpret_cast<const v8::Isolate*>(i::Isolate::FromHeap(heap));
+  return i::Isolate::FromHeap(chunk->MetadataNoIsolateCheck()->heap());
 }
 
+// Returns whether two heap objects belong to the same isolate group. Each
+// group has its own pointer compression cage when there can be more than one
+// group; otherwise all isolates are in the same group.
+bool InSameIsolateGroup(v8::internal::Address a, v8::internal::Address b) {
+#ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
+  namespace i = v8::internal;
+  constexpr i::Address kCageMask = ~(i::kPtrComprCageBaseAlignment - 1);
+  return (a & kCageMask) == (b & kCageMask);
+#else
+  return true;
+#endif
+}
+
+}  // namespace
+
 extern "C" {
+
+const v8::Isolate* v8__Data__MaybeGetIsolate(const v8::Data& self) {
+  namespace i = v8::internal;
+  return reinterpret_cast<const v8::Isolate*>(
+      MaybeGetIsolate(i::ValueHelper::ValueAsAddress(&self)));
+}
+
+// Smis can be used in any isolate, read-only and writable shared space values
+// in any isolate of the group they belong to, and all other values only in the
+// isolate whose heap holds them.
+bool v8__Data__IsCompatibleWithIsolate(const v8::Data& self,
+                                       const v8::Isolate& isolate) {
+  namespace i = v8::internal;
+  i::Address value = i::ValueHelper::ValueAsAddress(&self);
+  if (!i::Internals::HasHeapObjectTag(value)) return true;
+  const i::Isolate* i_isolate = reinterpret_cast<const i::Isolate*>(&isolate);
+  if (!InSameIsolateGroup(value, i_isolate->cage_base())) return false;
+  const i::Isolate* owner = MaybeGetIsolate(value);
+  return owner == nullptr || owner == i_isolate;
+}
+
+// Returns whether `self` can be used in an isolate that `other` can be used
+// in. When neither value identifies an isolate, only their groups are
+// compared.
+bool v8__Data__IsCompatibleWith(const v8::Data& self, const v8::Data& other) {
+  namespace i = v8::internal;
+  i::Address a = i::ValueHelper::ValueAsAddress(&self);
+  i::Address b = i::ValueHelper::ValueAsAddress(&other);
+  if (!i::Internals::HasHeapObjectTag(a) ||
+      !i::Internals::HasHeapObjectTag(b)) {
+    return true;
+  }
+  if (!InSameIsolateGroup(a, b)) return false;
+  const i::Isolate* owner_a = MaybeGetIsolate(a);
+  const i::Isolate* owner_b = MaybeGetIsolate(b);
+  return owner_a == nullptr || owner_b == nullptr || owner_a == owner_b;
+}
+
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv,
                                      const char* usage) {
   namespace i = v8::internal;
