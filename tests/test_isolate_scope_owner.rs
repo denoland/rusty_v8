@@ -132,6 +132,21 @@ fn global_of_local_in_other_isolate_panics() {
 
 #[test]
 #[should_panic(
+  expected = "attempt to use Handle in an Isolate that is not its host"
+)]
+fn string_method_with_other_isolate_panics() {
+  setup();
+  let b = &mut v8::Isolate::new(Default::default());
+  // Created last, so that it is the current isolate.
+  let a = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, a);
+  let from_a = v8::String::new(scope, "from a").unwrap();
+  // String methods take an `Isolate`, not a scope.
+  from_a.to_rust_string_lossy(b);
+}
+
+#[test]
+#[should_panic(
   expected = "attempt to get a handle in an Isolate other than the one it was set in"
 )]
 fn traced_reference_of_other_isolate_panics() {

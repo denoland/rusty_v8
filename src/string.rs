@@ -630,6 +630,7 @@ impl String {
   /// string.
   #[inline(always)]
   pub fn utf8_length(&self, scope: &Isolate) -> usize {
+    crate::handle::assert_locals_in_isolate(scope);
     unsafe { v8__String__Utf8Length(self, scope.as_real_ptr()) as usize }
   }
 
@@ -643,6 +644,7 @@ impl String {
     buffer: &mut [u16],
     flags: WriteFlags,
   ) {
+    crate::handle::assert_locals_in_isolate(scope);
     unsafe {
       v8__String__Write_v2(
         self,
@@ -665,6 +667,7 @@ impl String {
     buffer: &mut [u8],
     flags: WriteFlags,
   ) {
+    crate::handle::assert_locals_in_isolate(scope);
     unsafe {
       v8__String__WriteOneByte_v2(
         self,
@@ -687,6 +690,7 @@ impl String {
     buffer: &mut [MaybeUninit<u8>],
     flags: WriteFlags,
   ) {
+    crate::handle::assert_locals_in_isolate(scope);
     unsafe {
       v8__String__WriteOneByte_v2(
         self,
@@ -708,6 +712,7 @@ impl String {
     flags: WriteFlags,
     processed_characters_return: Option<&mut usize>,
   ) -> usize {
+    crate::handle::assert_locals_in_isolate(scope);
     unsafe {
       // SAFETY:
       // We assume that v8 will overwrite the buffer without de-initializing any byte in it.
@@ -735,6 +740,7 @@ impl String {
     flags: WriteFlags,
     processed_characters_return: Option<&mut usize>,
   ) -> usize {
+    crate::handle::assert_locals_in_isolate(scope);
     let bytes = unsafe {
       v8__String__WriteUtf8_v2(
         self,
@@ -1080,6 +1086,7 @@ impl String {
   /// data, with SIMD-accelerated transcoding for Latin-1 and two-byte
   /// strings.
   pub fn to_rust_string_lossy(&self, scope: &Isolate) -> std::string::String {
+    crate::handle::assert_locals_in_isolate(scope);
     // No preliminary `self.length()` FFI call: the `ValueView` reports the
     // length, and `data()` yields an empty slice for empty strings, which the
     // ASCII arm below turns into an empty `String`.
@@ -1106,6 +1113,7 @@ impl String {
     scope: &mut Isolate,
     buf: &mut std::string::String,
   ) {
+    crate::handle::assert_locals_in_isolate(scope);
     buf.clear();
     // No preliminary `self.length()` FFI call; an empty string yields an empty
     // `data()` slice and leaves `buf` cleared.
@@ -1157,6 +1165,7 @@ impl String {
     scope: &mut Isolate,
     buffer: &'a mut [MaybeUninit<u8>; N],
   ) -> Cow<'a, str> {
+    crate::handle::assert_locals_in_isolate(scope);
     // No preliminary `self.length()` FFI call; an empty string yields an empty
     // `data()` slice, which the ASCII arm borrows as an empty `&str`.
     // SAFETY: `self` is a valid V8 string reachable from a handle scope.
