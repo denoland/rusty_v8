@@ -29,7 +29,10 @@
 #include "v8-platform.h"
 #include "v8-profiler.h"
 #include "v8.h"
+#include "v8/src/execution/isolate.h"
 #include "v8/src/flags/flags.h"
+#include "v8/src/heap/base-page.h"
+#include "v8/src/heap/memory-chunk-inl.h"
 #include "v8/src/libplatform/default-platform.h"
 
 using namespace support;
@@ -137,6 +140,22 @@ static_assert(sizeof(v8::Isolate::DisallowJavascriptExecutionScope) == 12,
 // enabled in the testsuite etc.
 extern "C" bool v8__V8__IsSandboxEnabled() {
   return v8::internal::SandboxIsEnabled();
+}
+
+// Returns the isolate whose heap holds the value of `self`, or nullptr if the
+// value is a Smi or lives in a space that isolates share (read-only space,
+// writable shared space). This uses internal APIs because V8 no longer exposes
+// a way to find the isolate a value belongs to.
+extern "C" const v8::Isolate* v8__Data__GetOwnerIsolate(const v8::Data& self) {
+  namespace i = v8::internal;
+  i::Address value = i::ValueHelper::ValueAsAddress(&self);
+  if (!i::Internals::HasHeapObjectTag(value)) return nullptr;
+  const i::MemoryChunk* chunk = i::MemoryChunk::FromAddress(value);
+  if (chunk->InReadOnlySpace() || chunk->InWritableSharedSpace()) {
+    return nullptr;
+  }
+  const i::Heap* heap = chunk->MetadataNoIsolateCheck()->heap();
+  return reinterpret_cast<const v8::Isolate*>(i::Isolate::FromHeap(heap));
 }
 
 extern "C" {

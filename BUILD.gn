@@ -6,7 +6,6 @@ static_library("rusty_v8") {
   sources = [
     "src/binding.cc",
     "src/crdtp_binding.cc",
-    "src/isolate_check.cc",
   ]
   deps = [
     "//build/config:shared_library_deps",
