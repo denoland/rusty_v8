@@ -132,8 +132,9 @@ impl Context {
     scope: &PinScope<'s, '_, ()>,
     options: ContextOptions,
   ) -> Local<'s, Context> {
-    if let Some(queue) = options.microtask_queue {
-      unsafe { &*queue }.assert_belongs_to(scope);
+    // A null queue selects the isolate's default queue.
+    if let Some(queue) = options.microtask_queue.and_then(NonNull::new) {
+      unsafe { queue.as_ref() }.assert_belongs_to(scope);
     }
     unsafe {
       scope.cast_local(|sd| {
@@ -576,8 +577,9 @@ impl Context {
     context_snapshot_index: usize,
     options: ContextOptions,
   ) -> Option<Local<'s, Context>> {
-    if let Some(queue) = options.microtask_queue {
-      unsafe { &*queue }.assert_belongs_to(scope);
+    // A null queue selects the isolate's default queue.
+    if let Some(queue) = options.microtask_queue.and_then(NonNull::new) {
+      unsafe { queue.as_ref() }.assert_belongs_to(scope);
     }
     unsafe {
       scope.cast_local(|sd| {

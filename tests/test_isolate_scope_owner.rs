@@ -319,6 +319,57 @@ fn value_serializer_of_other_isolate_panics_through_helper_trait() {
 }
 
 #[test]
+#[should_panic(
+  expected = "attempt to use Handle in an Isolate that is not its host"
+)]
+fn wasm_streaming_abort_with_value_of_other_isolate_panics() {
+  use std::cell::RefCell;
+  thread_local! {
+    static STREAMING: RefCell<Option<v8::WasmStreaming<false>>> =
+      const { RefCell::new(None) };
+  }
+  setup();
+  let a = &mut v8::Isolate::new(Default::default());
+  a.set_wasm_streaming_callback(
+    |_: &mut v8::PinScope,
+     _: v8::Local<v8::Value>,
+     streaming: v8::WasmStreaming<false>| {
+      STREAMING.with(|slot| *slot.borrow_mut() = Some(streaming));
+    },
+  );
+  {
+    v8::scope!(let scope, a);
+    let context = v8::Context::new(scope, Default::default());
+    let scope = &mut v8::ContextScope::new(scope, context);
+    let code =
+      v8::String::new(scope, "WebAssembly.compileStreaming('x')").unwrap();
+    let script = v8::Script::compile(scope, code, None).unwrap();
+    script.run(scope).unwrap();
+  }
+  let streaming = STREAMING.with(|slot| slot.borrow_mut().take()).unwrap();
+
+  let b = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, b);
+  let from_b = v8::String::new(scope, "from b").unwrap();
+  streaming.abort(Some(from_b.into()));
+}
+
+#[test]
+fn context_with_null_microtask_queue_uses_default_queue() {
+  setup();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+  let context = v8::Context::new(
+    scope,
+    v8::ContextOptions {
+      microtask_queue: Some(std::ptr::null_mut()),
+      ..Default::default()
+    },
+  );
+  assert!(context.get_microtask_queue().is_some());
+}
+
+#[test]
 fn traced_reference_and_eternal_in_their_own_isolate() {
   setup();
   let isolate = &mut v8::Isolate::new(Default::default());

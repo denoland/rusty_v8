@@ -6,6 +6,7 @@ use std::ptr::null_mut;
 
 use crate::ArrayBuffer;
 use crate::Isolate;
+use crate::IsolateHandle;
 use crate::Local;
 use crate::PinScope;
 use crate::Value;
@@ -44,6 +45,9 @@ struct WasmStreamingSharedPtr([*mut u8; 2]);
 #[repr(C)]
 pub struct WasmStreaming<const HAS_COMPILED_MODULE_BYTES: bool>(
   WasmStreamingSharedPtr,
+  // The isolate that started the streaming compilation, whose promise
+  // `abort()` rejects.
+  IsolateHandle,
 );
 
 impl<const HAS_COMPILED_MODULE_BYTES: bool>
@@ -65,7 +69,15 @@ impl<const HAS_COMPILED_MODULE_BYTES: bool>
   /// associated with streaming compilation is rejected with that value. If
   /// {exception} does not have value, the promise does not get rejected.
   #[inline(always)]
+  ///
+  /// # Panics
+  ///
+  /// Panics if `exception` belongs to another isolate than the one that
+  /// started the streaming compilation.
   pub fn abort(mut self, exception: Option<Local<Value>>) {
+    if exception.is_some() {
+      crate::handle::assert_locals_in_isolate_of(&self.1);
+    }
     let exception = exception.map_or(null(), |v| &*v as *const Value);
     unsafe { v8__WasmStreaming__Abort(&mut self.0, exception) }
   }
@@ -518,7 +530,8 @@ where
       v8__WasmStreaming__Unpack(scope.get_isolate_ptr(), &*data, &mut that);
     };
     let source = args.get(0);
-    (F::get())(scope, source, WasmStreaming(that));
+    let isolate = scope.thread_safe_handle();
+    (F::get())(scope, source, WasmStreaming(that, isolate));
   }
   c_fn::<F>
 }
