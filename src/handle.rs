@@ -1363,11 +1363,16 @@ impl<T> TracedReference<T> {
 
   /// Always resets the reference. Creates a new reference from `other` if it is
   /// non-empty.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the reference was set in another `Isolate`.
   pub fn reset<'s>(
     &mut self,
     scope: &PinScope<'s, '_, ()>,
     data: Option<Local<'s, T>>,
   ) {
+    assert_set_in_isolate(&self.isolate, scope);
     let isolate = match data {
       Some(_) => scope.global_liveness().as_ptr() as usize,
       None => 0,

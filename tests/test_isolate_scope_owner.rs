@@ -370,6 +370,50 @@ fn context_with_null_microtask_queue_uses_default_queue() {
 }
 
 #[test]
+#[should_panic(
+  expected = "attempt to get a handle in an Isolate other than the one it was set in"
+)]
+fn traced_reference_reset_in_other_isolate_panics() {
+  setup();
+  let a = &mut v8::Isolate::new(Default::default());
+  let mut traced = {
+    v8::scope!(let scope, a);
+    let s = v8::String::new(scope, "from a").unwrap();
+    v8::TracedReference::new(scope, s)
+  };
+
+  let b = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, b);
+  traced.reset(scope, None);
+}
+
+#[test]
+fn scopes_of_another_isolate_inside_allow_scopes_of_another_isolate() {
+  setup();
+  let a = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, a);
+  let from_a = v8::String::new(scope, "from a").unwrap();
+  let length = unsafe {
+    v8::allow_scopes_of_another_isolate(|| {
+      let b = &mut v8::Isolate::new(Default::default());
+      v8::scope!(let scope, b);
+      v8::String::new(scope, "from b").unwrap().length()
+    })
+  };
+  assert_eq!(length, 6);
+  // The scopes of `a` count as open again.
+  assert_eq!(
+    v8::String::concat(scope, from_a, from_a).unwrap().length(),
+    12
+  );
+  let result = std::panic::catch_unwind(|| {
+    let b = &mut v8::Isolate::new(Default::default());
+    v8::scope!(let _scope, b);
+  });
+  assert!(result.is_err());
+}
+
+#[test]
 fn traced_reference_and_eternal_in_their_own_isolate() {
   setup();
   let isolate = &mut v8::Isolate::new(Default::default());

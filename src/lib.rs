@@ -179,6 +179,7 @@ pub use isolate::UnsafeRawIsolatePtr;
 pub use scope::HandleScope;
 pub use scope::OnFailure;
 pub use scope::TryCatch;
+pub use scope::allow_scopes_of_another_isolate;
 pub use script::ScriptOrigin;
 pub use script_compiler::CachedData;
 pub use snapshot::FunctionCodeHandling;

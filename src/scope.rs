@@ -150,6 +150,11 @@
 //! additionally check, whenever a `Local` is dereferenced, that its value can be used in the
 //! `Isolate` that owns the open scopes: it lives in that `Isolate`'s heap, it is a value that all
 //! `Isolate`s of its `IsolateGroup` share (such as `undefined`), or it is a Smi.
+//!
+//! Code that has to drive another `Isolate` while scopes of the first are open can do so inside
+//! the `unsafe` [`allow_scopes_of_another_isolate`]. A scope that is leaked (for example with
+//! `std::mem::forget`) counts as open for the rest of the thread's life, so scopes of other
+//! `Isolate`s can no longer be opened on that thread.
 use crate::{
   Context, Data, DataError, Function, FunctionCallbackInfo, Isolate, Local,
   Message, Object, OwnedIsolate, PromiseRejectMessage, PropertyCallbackInfo,
@@ -212,6 +217,20 @@ pub(crate) mod scope_owner {
     }
   }
 
+  /// Runs `f` with no scopes counted as open on this thread, and restores
+  /// the count when `f` returns or unwinds.
+  pub(super) fn suspend<R>(f: impl FnOnce() -> R) -> R {
+    struct Restore((*const RealIsolate, usize));
+    impl Drop for Restore {
+      fn drop(&mut self) {
+        debug_assert_eq!(OWNER.get().1, 0, "a scope was left open");
+        OWNER.set(self.0);
+      }
+    }
+    let _restore = Restore(OWNER.replace((std::ptr::null(), 0)));
+    f()
+  }
+
   /// Called when a scope opened with `enter()` is closed.
   #[inline]
   pub(super) fn exit() {
@@ -252,6 +271,20 @@ pub(crate) mod scope_owner {
       );
     }
   }
+}
+
+/// Runs `f` with the scopes that are open on this thread set aside, so that
+/// `f` can open scopes of an `Isolate` other than the one they belong to (see
+/// "Isolates" in the module documentation). They count as open again when `f`
+/// returns.
+///
+/// # Safety
+///
+/// While `f` runs, handles of the `Isolate`s whose scopes were set aside must
+/// not be used with any other `Isolate`, and handles that `f` creates must not
+/// be used once it returns. `f` must close every scope it opens.
+pub unsafe fn allow_scopes_of_another_isolate<R>(f: impl FnOnce() -> R) -> R {
+  scope_owner::suspend(f)
 }
 
 pub type PinScope<'s, 'i, C = Context> = PinnedRef<'s, HandleScope<'i, C>>;
