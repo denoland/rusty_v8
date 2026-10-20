@@ -451,11 +451,32 @@ impl<T: GarbageCollected> GetRustObj<T> for *mut RustObj {
   }
 }
 
+// The C++ member slot holds a compressed uint32_t or a raw uintptr_t.
+// Select storage from the generated C++ size so the same generated binding
+// that controls size also determines the required 4- or 8-byte alignment.
+// Unsupported sizes fail to compile.
+trait MemberStorage {
+  type Aligned;
+}
+#[repr(C, align(4))]
+struct CompressedMemberStorage([u8; 4]);
+#[repr(C, align(8))]
+struct RawMemberStorage([u8; 8]);
+
+impl MemberStorage for [u8; 4] {
+  type Aligned = CompressedMemberStorage;
+}
+impl MemberStorage for [u8; 8] {
+  type Aligned = RawMemberStorage;
+}
+
 macro_rules! member {
   ($( # $attr:tt )* $name:ident) => {
     paste::paste! {
       #[repr(transparent)]
-      struct [< $name Inner >]([u8; crate::binding:: [< cppgc__ $name _SIZE >]]);
+      struct [< $name Inner >](
+        <[u8; crate::binding:: [< cppgc__ $name _SIZE >]] as MemberStorage>::Aligned,
+      );
 
       impl [< $name Inner >] {
         fn new(ptr: *mut RustObj) -> Self {
@@ -582,6 +603,52 @@ member! {
   /// the object will be garbage collected. At the time of GC the weak pointers
   /// will automatically be set to null.
   WeakMember
+}
+
+#[cfg(test)]
+mod member_layout_tests {
+  use super::*;
+  use std::mem::{align_of, offset_of, size_of};
+
+  struct Node;
+
+  // SAFETY: Node owns no managed pointers.
+  unsafe impl GarbageCollected for Node {
+    fn trace(&self, _: &mut Visitor) {}
+    fn get_name(&self) -> &'static CStr {
+      c"Node"
+    }
+  }
+
+  #[repr(C)]
+  struct BytePrefixed<T> {
+    prefix: u8,
+    member: T,
+  }
+
+  #[repr(C)]
+  struct WordPrefixed<T> {
+    prefix: u32,
+    member: T,
+  }
+
+  fn check<T>(cpp_size: usize) {
+    assert_eq!(size_of::<T>(), cpp_size);
+    // C++ stores either a uint32_t compressed pointer or a uintptr_t slot.
+    assert_eq!(align_of::<T>(), cpp_size);
+    assert_eq!(offset_of!(BytePrefixed<T>, member) % cpp_size, 0);
+    assert_eq!(offset_of!(WordPrefixed<T>, member) % cpp_size, 0);
+  }
+
+  #[test]
+  fn cppgc_member_storage_matches_cpp_alignment() {
+    // Check the internal constructor temporaries and embedded Rust fields
+    // without constructing members: C++ must never receive misaligned slots.
+    check::<MemberInner>(crate::binding::cppgc__Member_SIZE);
+    check::<WeakMemberInner>(crate::binding::cppgc__WeakMember_SIZE);
+    check::<Member<Node>>(crate::binding::cppgc__Member_SIZE);
+    check::<WeakMember<Node>>(crate::binding::cppgc__WeakMember_SIZE);
+  }
 }
 
 macro_rules! persistent {
