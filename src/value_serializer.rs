@@ -360,6 +360,22 @@ impl ValueSerializerHeap<'_> {
     FieldOffset::from_ptrs(buf.as_ptr(), delegate)
   }
 
+  fn get_cxx_value_serializer_offset() -> FieldOffset<CxxValueSerializer> {
+    let buf = std::mem::MaybeUninit::<Self>::uninit();
+    let serializer = unsafe { addr_of!((*buf.as_ptr()).cxx_value_serializer) };
+    FieldOffset::from_ptrs(buf.as_ptr(), serializer)
+  }
+
+  /// Panics unless the `Local`s of the scopes open on this thread belong to
+  /// the isolate of the serializer. Every `CxxValueSerializer` is embedded in
+  /// a `ValueSerializerHeap`.
+  fn assert_locals_in_isolate_of(cxx_value_serializer: &CxxValueSerializer) {
+    let heap: &ValueSerializerHeap = unsafe {
+      Self::get_cxx_value_serializer_offset().to_embedder(cxx_value_serializer)
+    };
+    heap.context.assert_locals_in_same_isolate();
+  }
+
   /// Starting from 'this' pointer a ValueSerializerHeap ref can be created
   pub unsafe fn dispatch(
     value_serializer_delegate: &CxxValueSerializerDelegate,
@@ -400,6 +416,9 @@ pub trait ValueSerializerHelper {
     context: Local<Context>,
     value: Local<Value>,
   ) -> Option<bool> {
+    ValueSerializerHeap::assert_locals_in_isolate_of(
+      self.get_cxx_value_serializer(),
+    );
     unsafe {
       v8__ValueSerializer__WriteValue(
         cast_to_ptr(self.get_cxx_value_serializer()),
@@ -452,6 +471,9 @@ pub trait ValueSerializerHelper {
     transfer_id: u32,
     array_buffer: Local<ArrayBuffer>,
   ) {
+    ValueSerializerHeap::assert_locals_in_isolate_of(
+      self.get_cxx_value_serializer(),
+    );
     unsafe {
       v8__ValueSerializer__TransferArrayBuffer(
         cast_to_ptr(self.get_cxx_value_serializer()),

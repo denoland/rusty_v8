@@ -2043,6 +2043,7 @@ impl Isolate {
   /// Enqueues the callback to the default MicrotaskQueue
   #[inline(always)]
   pub fn enqueue_microtask(&mut self, microtask: Local<Function>) {
+    crate::handle::assert_locals_in_isolate(self);
     unsafe { v8__Isolate__EnqueueMicrotask(self.as_real_ptr(), &*microtask) }
   }
 
@@ -2190,6 +2191,7 @@ impl Isolate {
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
   pub fn set_default_context(&mut self, context: Local<Context>) {
+    crate::handle::assert_locals_in_isolate(self);
     let snapshot_creator = self
       .get_annex_mut()
       .maybe_snapshot_creator
@@ -2208,6 +2210,7 @@ impl Isolate {
   /// Panics if the isolate was not created using [`Isolate::snapshot_creator`]
   #[inline(always)]
   pub fn add_context(&mut self, context: Local<Context>) -> usize {
+    crate::handle::assert_locals_in_isolate(self);
     let snapshot_creator = self
       .get_annex_mut()
       .maybe_snapshot_creator
@@ -2229,6 +2232,7 @@ impl Isolate {
   where
     for<'l> Local<'l, T>: Into<Local<'l, Data>>,
   {
+    crate::handle::assert_locals_in_isolate(self);
     let snapshot_creator = self
       .get_annex_mut()
       .maybe_snapshot_creator
@@ -2254,6 +2258,7 @@ impl Isolate {
   where
     for<'l> Local<'l, T>: Into<Local<'l, Data>>,
   {
+    crate::handle::assert_locals_in_isolate(self);
     let snapshot_creator = self
       .get_annex_mut()
       .maybe_snapshot_creator

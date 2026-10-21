@@ -137,6 +137,24 @@
 //!
 //! The lifetime for handles bound to the scope is the lifetime of the scope that it was created from.
 //! So in `ContextScope<'b, 's>`, `'b` is the lifetime of the borrow of the inner scope, and `'s` is the lifetime of the inner scope (and therefore the handles).
+//!
+//! ### Isolates
+//! A handle's lifetime ties it to a scope, but not to the `Isolate` that scope belongs to, so the
+//! type system alone would allow a handle of one `Isolate` to be passed to an API call on another
+//! one, which corrupts both heaps. To rule that out, all scopes that are open on a thread at the
+//! same time must belong to the same `Isolate`: opening a `HandleScope`, `EscapableHandleScope` or
+//! `CallbackScope` while a scope of another `Isolate` is open on the same thread panics. Since a
+//! handle cannot outlive its scope, no handle of another `Isolate` can then be alive. Handles that
+//! outlive scopes (`Global`, `Weak`, `TracedReference` and `Eternal`) remember their `Isolate`, and
+//! panic when created from or turned into a `Local` in a scope of another `Isolate`. Debug builds
+//! additionally check, whenever a `Local` is dereferenced, that its value can be used in the
+//! `Isolate` that owns the open scopes: it lives in that `Isolate`'s heap, it is a value that all
+//! `Isolate`s of its `IsolateGroup` share (such as `undefined`), or it is a Smi.
+//!
+//! Code that has to drive another `Isolate` while scopes of the first are open can do so inside
+//! the `unsafe` [`allow_scopes_of_another_isolate`]. A scope that is leaked (for example with
+//! `std::mem::forget`) counts as open for the rest of the thread's life, so scopes of other
+//! `Isolate`s can no longer be opened on that thread.
 use crate::{
   Context, Data, DataError, Function, FunctionCallbackInfo, Isolate, Local,
   Message, Object, OwnedIsolate, PromiseRejectMessage, PropertyCallbackInfo,
@@ -156,6 +174,118 @@ use std::{
   ptr::NonNull,
 };
 pub(crate) mod raw;
+
+/// Tracks which `Isolate` owns the scopes that are open on the current thread
+/// (see "Isolates" in the module documentation).
+pub(crate) mod scope_owner {
+  use std::cell::Cell;
+  use std::ptr::NonNull;
+
+  use crate::isolate::RealIsolate;
+
+  thread_local! {
+    // The `Isolate` that owns the open scopes, and how many scopes are open.
+    static OWNER: Cell<(*const RealIsolate, usize)> =
+      const { Cell::new((std::ptr::null(), 0)) };
+  }
+
+  /// Called when a scope of `isolate` is opened.
+  ///
+  /// # Panics
+  ///
+  /// Panics if a scope of another `Isolate` is open on this thread.
+  #[inline]
+  pub(super) fn enter(isolate: NonNull<RealIsolate>) {
+    let (owner, depth) = OWNER.get();
+    if depth != 0 && owner != isolate.as_ptr().cast_const() {
+      panic!(
+        "cannot open a scope on an Isolate while a scope of another Isolate \
+         is open on the same thread"
+      );
+    }
+    OWNER.set((isolate.as_ptr(), depth + 1));
+  }
+
+  /// Returns the `Isolate` that owns the scopes open on this thread, if any.
+  #[inline]
+  pub(crate) fn current() -> Option<NonNull<RealIsolate>> {
+    let (owner, depth) = OWNER.get();
+    if depth == 0 {
+      None
+    } else {
+      NonNull::new(owner.cast_mut())
+    }
+  }
+
+  /// Runs `f` with no scopes counted as open on this thread, and restores
+  /// the count when `f` returns or unwinds.
+  pub(super) fn suspend<R>(f: impl FnOnce() -> R) -> R {
+    struct Restore((*const RealIsolate, usize));
+    impl Drop for Restore {
+      fn drop(&mut self) {
+        debug_assert_eq!(OWNER.get().1, 0, "a scope was left open");
+        OWNER.set(self.0);
+      }
+    }
+    let _restore = Restore(OWNER.replace((std::ptr::null(), 0)));
+    f()
+  }
+
+  /// Called when a scope opened with `enter()` is closed.
+  #[inline]
+  pub(super) fn exit() {
+    let (owner, depth) = OWNER.get();
+    debug_assert!(depth > 0);
+    if depth == 1 {
+      OWNER.set((std::ptr::null(), 0));
+    } else {
+      OWNER.set((owner, depth - 1));
+    }
+  }
+
+  #[cfg(debug_assertions)]
+  unsafe extern "C" {
+    fn v8__Data__IsCompatibleWithIsolate(
+      this: *const crate::Data,
+      isolate: *const RealIsolate,
+    ) -> bool;
+  }
+
+  /// Checks that the value of a dereferenced `Local` can be used in the
+  /// `Isolate` that owns the open scopes.
+  ///
+  /// # Panics
+  ///
+  /// Panics if it can't.
+  #[cfg(debug_assertions)]
+  pub(crate) fn check_handle(data: NonNull<crate::Data>) {
+    let (owner, depth) = OWNER.get();
+    if depth == 0 {
+      return;
+    }
+    // SAFETY: `data` points to a live handle and `owner` to a live isolate.
+    if !unsafe { v8__Data__IsCompatibleWithIsolate(data.as_ptr(), owner) } {
+      panic!(
+        "a handle of one Isolate was used while a scope of another Isolate \
+         is open"
+      );
+    }
+  }
+}
+
+/// Runs `f` with the scopes that are open on this thread set aside, so that
+/// `f` can open scopes of an `Isolate` other than the one they belong to (see
+/// "Isolates" in the module documentation). They count as open again when `f`
+/// returns.
+///
+/// # Safety
+///
+/// While `f` runs, handles of the `Isolate`s whose scopes were set aside must
+/// not be used with any other `Isolate`, and handles that `f` creates must not
+/// be used once it returns. `f` must close every scope it opens.
+pub unsafe fn allow_scopes_of_another_isolate<R>(f: impl FnOnce() -> R) -> R {
+  scope_owner::suspend(f)
+}
 
 pub type PinScope<'s, 'i, C = Context> = PinnedRef<'s, HandleScope<'i, C>>;
 pub type PinCallbackScope<'s, 'i, C = Context> =
@@ -244,6 +374,7 @@ impl<C> ScopeInit for HandleScope<'_, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     // SAFETY: no moving the scope from this point on
     let storage_mut = unsafe { storage.get_unchecked_mut() };
+    scope_owner::enter(storage_mut.scope.isolate);
     unsafe {
       let isolate = storage_mut.scope.isolate;
       raw::HandleScope::init(&mut storage_mut.scope.raw_handle_scope, isolate)
@@ -257,6 +388,7 @@ impl<C> ScopeInit for HandleScope<'_, C> {
 
   unsafe fn deinit(me: &mut Self) {
     unsafe { raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope) };
+    scope_owner::exit();
   }
 }
 
@@ -1027,6 +1159,7 @@ impl<C> ScopeInit for CallbackScope<'_, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
     let isolate = storage_mut.scope.isolate;
+    scope_owner::enter(isolate);
     if storage_mut.scope.needs_scope {
       unsafe {
         raw::HandleScope::init(
@@ -1044,6 +1177,7 @@ impl<C> ScopeInit for CallbackScope<'_, C> {
     if me.needs_scope {
       unsafe { raw::v8__HandleScope__DESTRUCT(&mut me.raw_handle_scope) };
     }
+    scope_owner::exit();
   }
 }
 
@@ -1457,6 +1591,7 @@ assert_layout_subset!(HandleScope<'static, ()>, EscapableHandleScope<'static, 's
 impl<'s, 'esc: 's, C> ScopeInit for EscapableHandleScope<'s, 'esc, C> {
   fn init_stack(storage: Pin<&mut ScopeStorage<Self>>) -> Pin<&mut Self> {
     let storage_mut = unsafe { storage.get_unchecked_mut() };
+    scope_owner::enter(storage_mut.scope.isolate);
     unsafe {
       let isolate = storage_mut.scope.isolate;
       raw::HandleScope::init(&mut storage_mut.scope.raw_handle_scope, isolate);
@@ -1468,6 +1603,7 @@ impl<'s, 'esc: 's, C> ScopeInit for EscapableHandleScope<'s, 'esc, C> {
 
   unsafe fn deinit(me: &mut Self) {
     unsafe { raw::v8__HandleScope__DESTRUCT(&raw mut me.raw_handle_scope) };
+    scope_owner::exit();
   }
 }
 

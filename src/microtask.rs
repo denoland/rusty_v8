@@ -26,6 +26,10 @@ unsafe extern "C" {
     isolate: *mut RealIsolate,
     queue: *const MicrotaskQueue,
   );
+  fn v8__MicrotaskQueue__BelongsTo(
+    queue: *const MicrotaskQueue,
+    isolate: *mut RealIsolate,
+  ) -> bool;
   fn v8__MicrotaskQueue__IsRunningMicrotasks(
     queue: *const MicrotaskQueue,
   ) -> bool;
@@ -70,6 +74,8 @@ impl MicrotaskQueue {
     isolate: &mut Isolate,
     microtask: Local<Function>,
   ) {
+    self.assert_belongs_to(isolate);
+    crate::handle::assert_locals_in_isolate(isolate);
     unsafe {
       v8__MicrotaskQueue__EnqueueMicrotask(
         isolate.as_real_ptr(),
@@ -90,9 +96,21 @@ impl MicrotaskQueue {
   /// Executing scripts inside the callback will not re-trigger microtasks and
   /// the callback.
   pub fn perform_checkpoint(&self, isolate: &mut Isolate) {
+    self.assert_belongs_to(isolate);
     unsafe {
       v8__MicrotaskQueue__PerformCheckpoint(isolate.as_real_ptr(), self);
     }
+  }
+
+  /// Panics unless this queue belongs to `isolate`.
+  ///
+  /// This takes time proportional to the number of microtask queues of
+  /// `isolate`.
+  pub(crate) fn assert_belongs_to(&self, isolate: &Isolate) {
+    assert!(
+      unsafe { v8__MicrotaskQueue__BelongsTo(self, isolate.as_real_ptr()) },
+      "attempt to use a MicrotaskQueue in an Isolate other than its own"
+    );
   }
 
   /// Removes callback that was installed by AddMicrotasksCompletedCallback.

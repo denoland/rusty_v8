@@ -257,6 +257,26 @@ impl ValueDeserializerHeap<'_> {
     FieldOffset::from_ptrs(buf.as_ptr(), delegate)
   }
 
+  fn get_cxx_value_deserializer_offset() -> FieldOffset<CxxValueDeserializer> {
+    let buf = std::mem::MaybeUninit::<Self>::uninit();
+    let deserializer =
+      unsafe { addr_of!((*buf.as_ptr()).cxx_value_deserializer) };
+    FieldOffset::from_ptrs(buf.as_ptr(), deserializer)
+  }
+
+  /// Panics unless the `Local`s of the scopes open on this thread belong to
+  /// the isolate of the deserializer. Every `CxxValueDeserializer` is embedded
+  /// in a `ValueDeserializerHeap`.
+  fn assert_locals_in_isolate_of(
+    cxx_value_deserializer: &CxxValueDeserializer,
+  ) {
+    let heap: &ValueDeserializerHeap = unsafe {
+      Self::get_cxx_value_deserializer_offset()
+        .to_embedder(cxx_value_deserializer)
+    };
+    heap.context.assert_locals_in_same_isolate();
+  }
+
   /// Starting from 'this' pointer a ValueDeserializerHeap ref can be created
   pub unsafe fn dispatch(
     value_serializer_delegate: &CxxValueDeserializerDelegate,
@@ -283,6 +303,9 @@ pub trait ValueDeserializerHelper {
   fn get_cxx_value_deserializer(&self) -> &CxxValueDeserializer;
 
   fn read_header(&self, context: Local<Context>) -> Option<bool> {
+    ValueDeserializerHeap::assert_locals_in_isolate_of(
+      self.get_cxx_value_deserializer(),
+    );
     unsafe {
       v8__ValueDeserializer__ReadHeader(
         cast_to_ptr(self.get_cxx_value_deserializer()),
@@ -296,6 +319,9 @@ pub trait ValueDeserializerHelper {
     &self,
     context: Local<'s, Context>,
   ) -> Option<Local<'s, Value>> {
+    ValueDeserializerHeap::assert_locals_in_isolate_of(
+      self.get_cxx_value_deserializer(),
+    );
     unsafe {
       Local::from_raw(v8__ValueDeserializer__ReadValue(
         cast_to_ptr(self.get_cxx_value_deserializer()),
@@ -353,6 +379,9 @@ pub trait ValueDeserializerHelper {
     transfer_id: u32,
     array_buffer: Local<ArrayBuffer>,
   ) {
+    ValueDeserializerHeap::assert_locals_in_isolate_of(
+      self.get_cxx_value_deserializer(),
+    );
     unsafe {
       v8__ValueDeserializer__TransferArrayBuffer(
         cast_to_ptr(self.get_cxx_value_deserializer()),
@@ -367,6 +396,9 @@ pub trait ValueDeserializerHelper {
     transfer_id: u32,
     shared_array_buffer: Local<SharedArrayBuffer>,
   ) {
+    ValueDeserializerHeap::assert_locals_in_isolate_of(
+      self.get_cxx_value_deserializer(),
+    );
     unsafe {
       v8__ValueDeserializer__TransferSharedArrayBuffer(
         cast_to_ptr(self.get_cxx_value_deserializer()),

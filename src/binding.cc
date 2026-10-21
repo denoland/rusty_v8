@@ -29,7 +29,12 @@
 #include "v8-platform.h"
 #include "v8-profiler.h"
 #include "v8.h"
+#include "v8/src/execution/isolate-inl.h"
+#include "v8/src/execution/isolate.h"
+#include "v8/src/execution/microtask-queue.h"
 #include "v8/src/flags/flags.h"
+#include "v8/src/heap/base-page.h"
+#include "v8/src/heap/memory-chunk-inl.h"
 #include "v8/src/libplatform/default-platform.h"
 
 using namespace support;
@@ -139,7 +144,75 @@ extern "C" bool v8__V8__IsSandboxEnabled() {
   return v8::internal::SandboxIsEnabled();
 }
 
+namespace {
+
+// Returns the isolate whose heap holds `value`, or nullptr if `value` is a Smi
+// or lives in read-only or writable shared space. Those spaces belong to an
+// isolate group rather than to an isolate.
+const v8::internal::Isolate* MaybeGetIsolate(v8::internal::Address value) {
+  namespace i = v8::internal;
+  if (!i::Internals::HasHeapObjectTag(value)) return nullptr;
+  const i::MemoryChunk* chunk = i::MemoryChunk::FromAddress(value);
+  if (chunk->InReadOnlySpace() || chunk->InWritableSharedSpace()) {
+    return nullptr;
+  }
+  return i::Isolate::FromHeap(chunk->MetadataNoIsolateCheck()->heap());
+}
+
+// Returns whether two heap objects belong to the same isolate group. Each
+// group has its own pointer compression cage when there can be more than one
+// group; otherwise all isolates are in the same group.
+bool InSameIsolateGroup(v8::internal::Address a, v8::internal::Address b) {
+#ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
+  namespace i = v8::internal;
+  constexpr i::Address kCageMask = ~(i::kPtrComprCageBaseAlignment - 1);
+  return (a & kCageMask) == (b & kCageMask);
+#else
+  return true;
+#endif
+}
+
+}  // namespace
+
 extern "C" {
+
+const v8::Isolate* v8__Data__MaybeGetIsolate(const v8::Data& self) {
+  namespace i = v8::internal;
+  return reinterpret_cast<const v8::Isolate*>(
+      MaybeGetIsolate(i::ValueHelper::ValueAsAddress(&self)));
+}
+
+// Smis can be used in any isolate, read-only and writable shared space values
+// in any isolate of the group they belong to, and all other values only in the
+// isolate whose heap holds them.
+bool v8__Data__IsCompatibleWithIsolate(const v8::Data& self,
+                                       const v8::Isolate& isolate) {
+  namespace i = v8::internal;
+  i::Address value = i::ValueHelper::ValueAsAddress(&self);
+  if (!i::Internals::HasHeapObjectTag(value)) return true;
+  const i::Isolate* i_isolate = reinterpret_cast<const i::Isolate*>(&isolate);
+  if (!InSameIsolateGroup(value, i_isolate->cage_base())) return false;
+  const i::Isolate* owner = MaybeGetIsolate(value);
+  return owner == nullptr || owner == i_isolate;
+}
+
+// Returns whether `self` can be used in an isolate that `other` can be used
+// in. When neither value identifies an isolate, only their groups are
+// compared.
+bool v8__Data__IsCompatibleWith(const v8::Data& self, const v8::Data& other) {
+  namespace i = v8::internal;
+  i::Address a = i::ValueHelper::ValueAsAddress(&self);
+  i::Address b = i::ValueHelper::ValueAsAddress(&other);
+  if (!i::Internals::HasHeapObjectTag(a) ||
+      !i::Internals::HasHeapObjectTag(b)) {
+    return true;
+  }
+  if (!InSameIsolateGroup(a, b)) return false;
+  const i::Isolate* owner_a = MaybeGetIsolate(a);
+  const i::Isolate* owner_b = MaybeGetIsolate(b);
+  return owner_a == nullptr || owner_b == nullptr || owner_a == owner_b;
+}
+
 void v8__V8__SetFlagsFromCommandLine(int* argc, char** argv,
                                      const char* usage) {
   namespace i = v8::internal;
@@ -2602,6 +2675,32 @@ v8::MicrotaskQueue* v8__MicrotaskQueueHandle__Get(
 void v8__MicrotaskQueue__PerformCheckpoint(v8::Isolate* isolate,
                                            v8::MicrotaskQueue* self) {
   self->PerformCheckpoint(isolate);
+}
+
+// Returns whether `self` is one of `isolate`'s microtask queues. Only the
+// queues of `isolate` are looked at, never `self`, which may belong to
+// another isolate.
+bool v8__MicrotaskQueue__BelongsTo(const v8::MicrotaskQueue* self,
+                                   v8::Isolate* isolate) {
+  namespace i = v8::internal;
+  const i::MicrotaskQueue* queue = static_cast<const i::MicrotaskQueue*>(self);
+  i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
+#ifdef V8_CPPGC_MICROTASK_QUEUE
+  if (queue == i_isolate->default_microtask_queue()) return true;
+  for (const auto& weak : i_isolate->microtask_queues()) {
+    if (weak.Get() == queue) return true;
+  }
+  return false;
+#else
+  // The queues form a ring that starts at the default queue.
+  const i::MicrotaskQueue* first = i_isolate->default_microtask_queue();
+  const i::MicrotaskQueue* current = first;
+  do {
+    if (current == queue) return true;
+    current = current->next();
+  } while (current != first);
+  return false;
+#endif
 }
 
 bool v8__MicrotaskQueue__IsRunningMicrotasks(v8::MicrotaskQueue* self) {

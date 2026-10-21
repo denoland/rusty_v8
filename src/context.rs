@@ -132,6 +132,10 @@ impl Context {
     scope: &PinScope<'s, '_, ()>,
     options: ContextOptions,
   ) -> Local<'s, Context> {
+    // A null queue selects the isolate's default queue.
+    if let Some(queue) = options.microtask_queue.and_then(NonNull::new) {
+      unsafe { queue.as_ref() }.assert_belongs_to(scope);
+    }
     unsafe {
       scope.cast_local(|sd| {
         v8__Context__New(
@@ -225,6 +229,10 @@ impl Context {
       self.get_microtask_queue().is_some(),
       "cannot set a microtask queue on a context whose global object has been detached"
     );
+    if let Some(isolate) = crate::scope::scope_owner::current() {
+      let isolate = unsafe { crate::Isolate::from_non_null(isolate) };
+      microtask_queue.assert_belongs_to(&isolate);
+    }
     unsafe {
       v8__Context__SetMicrotaskQueue(self, microtask_queue);
     }
@@ -569,6 +577,10 @@ impl Context {
     context_snapshot_index: usize,
     options: ContextOptions,
   ) -> Option<Local<'s, Context>> {
+    // A null queue selects the isolate's default queue.
+    if let Some(queue) = options.microtask_queue.and_then(NonNull::new) {
+      unsafe { queue.as_ref() }.assert_belongs_to(scope);
+    }
     unsafe {
       scope.cast_local(|sd| {
         v8__Context__FromSnapshot(
