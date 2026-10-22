@@ -90,6 +90,15 @@ fn main() {
     println!("cargo:rerun-if-env-changed={env}");
   }
 
+  // Tell the Rust side whether V8 was configured with WebAssembly support, so
+  // that bindings for WebAssembly-only APIs cannot drift from the GN args.
+  // This has to happen before the early exits below, because it applies to
+  // every way of obtaining the library, not just source builds.
+  println!("cargo:rustc-check-cfg=cfg(v8_enable_webassembly)");
+  if webassembly_enabled() {
+    println!("cargo:rustc-cfg=v8_enable_webassembly");
+  }
+
   // Detect if trybuild tests are being compiled.
   let is_trybuild = env::var_os("DENO_TRYBUILD").is_some();
 
@@ -151,6 +160,24 @@ fn main() {
   print_prebuilt_src_binding_path();
 
   download_static_lib_binaries();
+}
+
+/// Whether V8 is built with WebAssembly support for the target being compiled.
+///
+/// This mirrors the `v8_enable_webassembly=false` GN arg that `build_v8()`
+/// passes for iOS, and matches the configuration the published iOS libraries
+/// are built with. Keep the two in sync: if they disagree, an embedder gets a
+/// link error for the WebAssembly-only entry points in `binding.cc`, which are
+/// compiled under `#if V8_ENABLE_WEBASSEMBLY`.
+fn webassembly_enabled() -> bool {
+  if env::var("CARGO_CFG_TARGET_OS").unwrap_or_default() != "ios" {
+    return true;
+  }
+  // `build_v8()` leaves the iOS defaults alone when `GN_ARGS` sets `target_os`
+  // itself, in which case WebAssembly is whatever the embedder asked for.
+  env::var("GN_ARGS")
+    .unwrap_or_default()
+    .contains(r#"target_os="ios""#)
 }
 
 fn acquire_lock() -> LockFile {
