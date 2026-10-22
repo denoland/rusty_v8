@@ -473,6 +473,17 @@ macro_rules! member {
         <[u8; crate::binding:: [<cppgc__ $name _SIZE>]] as MemberStorage>::Aligned,
       );
 
+      const _: () = {
+        assert!(
+          std::mem::size_of::<[< $name Inner >]>()
+            == crate::binding::[<cppgc__ $name _SIZE>]
+        );
+        assert!(
+          std::mem::align_of::<[< $name Inner >]>()
+            == crate::binding::[<cppgc__ $name _ALIGN>]
+        );
+      };
+
       impl [< $name Inner >] {
         fn new(ptr: *mut RustObj) -> Self {
           let mut this = std::mem::MaybeUninit::uninit();
@@ -790,30 +801,5 @@ impl<T: Traced> Traced for GcCell<T> {
       // its rules.
       visitor.trace(&(*self.value.get()));
     }
-  }
-}
-
-#[cfg(test)]
-mod tests {
-  use super::{MemberInner, WeakMemberInner};
-  use crate::binding;
-  use std::mem::{align_of, size_of};
-
-  #[test]
-  fn member_layout() {
-    assert_eq!(size_of::<MemberInner>(), binding::cppgc__Member_SIZE);
-    assert_eq!(align_of::<MemberInner>(), binding::cppgc__Member_ALIGN);
-  }
-
-  #[test]
-  fn weak_member_layout() {
-    assert_eq!(
-      size_of::<WeakMemberInner>(),
-      binding::cppgc__WeakMember_SIZE
-    );
-    assert_eq!(
-      align_of::<WeakMemberInner>(),
-      binding::cppgc__WeakMember_ALIGN
-    );
   }
 }
