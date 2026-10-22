@@ -451,23 +451,17 @@ impl<T: GarbageCollected> GetRustObj<T> for *mut RustObj {
   }
 }
 
-// The C++ member slot holds a compressed uint32_t or a raw uintptr_t.
-// Select storage from the generated C++ size so the same generated binding
-// that controls size also determines the required 4- or 8-byte alignment.
-// Unsupported sizes fail to compile.
+// C++ stores a compressed uint32_t or an uncompressed pointer. The binding
+// size selects the alignment; MaybeUninit keeps the slot opaque to Rust.
 trait MemberStorage {
   type Aligned;
 }
-#[repr(C, align(4))]
-struct CompressedMemberStorage([u8; 4]);
-#[repr(C, align(8))]
-struct RawMemberStorage([u8; 8]);
 
 impl MemberStorage for [u8; 4] {
-  type Aligned = CompressedMemberStorage;
+  type Aligned = std::mem::MaybeUninit<u32>;
 }
 impl MemberStorage for [u8; 8] {
-  type Aligned = RawMemberStorage;
+  type Aligned = std::mem::MaybeUninit<u64>;
 }
 
 macro_rules! member {
@@ -608,7 +602,7 @@ member! {
 #[cfg(test)]
 mod member_layout_tests {
   use super::*;
-  use std::mem::{align_of, offset_of, size_of};
+  use std::mem::{align_of, size_of};
 
   struct Node;
 
@@ -620,30 +614,14 @@ mod member_layout_tests {
     }
   }
 
-  #[repr(C)]
-  struct BytePrefixed<T> {
-    prefix: u8,
-    member: T,
-  }
-
-  #[repr(C)]
-  struct WordPrefixed<T> {
-    prefix: u32,
-    member: T,
-  }
-
   fn check<T>(cpp_size: usize) {
     assert_eq!(size_of::<T>(), cpp_size);
-    // C++ stores either a uint32_t compressed pointer or a uintptr_t slot.
     assert_eq!(align_of::<T>(), cpp_size);
-    assert_eq!(offset_of!(BytePrefixed<T>, member) % cpp_size, 0);
-    assert_eq!(offset_of!(WordPrefixed<T>, member) % cpp_size, 0);
   }
 
   #[test]
   fn cppgc_member_storage_matches_cpp_alignment() {
-    // Check the internal constructor temporaries and embedded Rust fields
-    // without constructing members: C++ must never receive misaligned slots.
+    // Do not construct members: this must fail safely on a misaligned layout.
     check::<MemberInner>(crate::binding::cppgc__Member_SIZE);
     check::<WeakMemberInner>(crate::binding::cppgc__WeakMember_SIZE);
     check::<Member<Node>>(crate::binding::cppgc__Member_SIZE);
