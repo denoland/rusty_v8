@@ -469,9 +469,9 @@ macro_rules! member {
   ($( # $attr:tt )* $name:ident) => {
     paste::paste! {
       #[repr(transparent)]
-        struct [< $name Inner >](
-          <[u8; crate::binding:: [<cppgc__ $name _SIZE>]] as MemberStorage>::Aligned,
-        );
+      struct [< $name Inner >](
+        <[u8; crate::binding:: [<cppgc__ $name _SIZE>]] as MemberStorage>::Aligned,
+      );
 
       impl [< $name Inner >] {
         fn new(ptr: *mut RustObj) -> Self {
@@ -790,5 +790,30 @@ impl<T: Traced> Traced for GcCell<T> {
       // its rules.
       visitor.trace(&(*self.value.get()));
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::{MemberInner, WeakMemberInner};
+  use crate::binding;
+  use std::mem::{align_of, size_of};
+
+  #[test]
+  fn member_layout() {
+    assert_eq!(size_of::<MemberInner>(), binding::cppgc__Member_SIZE);
+    assert_eq!(align_of::<MemberInner>(), binding::cppgc__Member_ALIGN);
+  }
+
+  #[test]
+  fn weak_member_layout() {
+    assert_eq!(
+      size_of::<WeakMemberInner>(),
+      binding::cppgc__WeakMember_SIZE
+    );
+    assert_eq!(
+      align_of::<WeakMemberInner>(),
+      binding::cppgc__WeakMember_ALIGN
+    );
   }
 }

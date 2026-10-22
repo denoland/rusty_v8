@@ -14,7 +14,9 @@
 static size_t v8__ScriptOrigin_SIZE = sizeof(v8::ScriptOrigin);
 
 static size_t cppgc__Member_SIZE = sizeof(cppgc::Member<RustObj>);
+static size_t cppgc__Member_ALIGN = alignof(cppgc::Member<RustObj>);
 static size_t cppgc__WeakMember_SIZE = sizeof(cppgc::WeakMember<RustObj>);
+static size_t cppgc__WeakMember_ALIGN = alignof(cppgc::WeakMember<RustObj>);
 
 static size_t v8__TracedReference_SIZE = sizeof(v8::TracedReference<v8::Data>);
 
