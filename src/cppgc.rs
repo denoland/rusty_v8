@@ -451,11 +451,27 @@ impl<T: GarbageCollected> GetRustObj<T> for *mut RustObj {
   }
 }
 
+// C++ stores a compressed uint32_t or an uncompressed pointer. The binding
+// size selects the alignment; MaybeUninit keeps the slot opaque to Rust.
+trait MemberStorage {
+  type Aligned;
+}
+
+impl MemberStorage for [u8; 4] {
+  type Aligned = std::mem::MaybeUninit<u32>;
+}
+
+impl MemberStorage for [u8; 8] {
+  type Aligned = std::mem::MaybeUninit<u64>;
+}
+
 macro_rules! member {
   ($( # $attr:tt )* $name:ident) => {
     paste::paste! {
       #[repr(transparent)]
-      struct [< $name Inner >]([u8; crate::binding:: [< cppgc__ $name _SIZE >]]);
+        struct [< $name Inner >](
+          <[u8; crate::binding:: [<cppgc__ $name _SIZE>]] as MemberStorage>::Aligned,
+        );
 
       impl [< $name Inner >] {
         fn new(ptr: *mut RustObj) -> Self {
