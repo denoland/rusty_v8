@@ -2372,6 +2372,7 @@ thread_local! {
   // Const-initialized and destructor-free, so this remains readable while
   // other TLS values are being destroyed. `Global::clone`/`drop` hit this on
   // every call.
+  #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
   static CURRENT_THREAD_ID: std::cell::Cell<usize> =
     const { std::cell::Cell::new(0) };
 }

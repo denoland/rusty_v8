@@ -8,7 +8,7 @@
 /target/
 /.cipd/
 
-third_party/android_ndk
+third_party/android_toolchain
 third_party/android_platform
 third_party/catapult
 third_party/llvm-build

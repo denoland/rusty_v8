@@ -181,6 +181,18 @@ jobs:
             v8_enable_pointer_compression: false
             cargo: cargo
 
+          - os: ubuntu-22.04
+            target: x86_64-linux-android
+            variant: release
+            v8_enable_pointer_compression: false
+            cargo: cargo
+
+          - os: ubuntu-22.04
+            target: aarch64-linux-android
+            variant: release
+            v8_enable_pointer_compression: false
+            cargo: cargo
+
 
 
 
@@ -272,6 +284,10 @@ jobs:
 
       - name: Install iOS target
         if: contains(matrix.config.target, 'ios')
+        run: rustup target add ${{ matrix.config.target }}
+
+      - name: Install Android target
+        if: contains(matrix.config.target, '-linux-android')
         run: rustup target add ${{ matrix.config.target }}
 
       # x86_64 macOS is cross-compiled on the free arm64 macOS runner (the
@@ -375,6 +391,9 @@ jobs:
                # iOS cross-compiles on the arm64 macOS runner, so use the host sccache binary.
                "aarch64-apple-ios"         = "aarch64-apple-darwin"
                "aarch64-apple-ios-sim"     = "aarch64-apple-darwin"
+               # Android cross-compiles on the x64 host, so use the host sccache binary.
+               "x86_64-linux-android"      = "x86_64-unknown-linux-musl"
+               "aarch64-linux-android"     = "x86_64-unknown-linux-musl"
              }['${{ matrix.config.target }}']
           $basename = "sccache-$version-$platform"
           $url = "https://github.com/mozilla/sccache/releases/download/$version/$basename.tar.gz"
@@ -427,14 +446,22 @@ jobs:
           SCCACHE_IDLE_TIMEOUT: 0
         run: ${{ matrix.config.cargo }} build -v --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
+      # Android is cross-compiled, so the test suite is not run on the runner
+      # (build-only, like the iOS targets).
+      - name: Build (Android)
+        if: contains(matrix.config.target, '-linux-android')
+        env:
+          SCCACHE_IDLE_TIMEOUT: 0
+        run: ${{ matrix.config.cargo }} build -v --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
+
       - name: Test
         env:
           SCCACHE_IDLE_TIMEOUT: 0
-        if: (matrix.config.variant == 'debug' || matrix.config.variant == 'release') && !contains(matrix.config.target, 'ios') && !contains(matrix.config.target, '-linux-musl')
+        if: (matrix.config.variant == 'debug' || matrix.config.variant == 'release') && !contains(matrix.config.target, 'ios') && !contains(matrix.config.target, '-linux-musl') && !contains(matrix.config.target, '-linux-android')
         run: ${{ matrix.config.cargo }} nextest run -v --cargo-verbose --cargo-verbose --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }}
 
       - name: Clippy
-        if: ${{ !contains(matrix.config.target, 'ios') && !contains(matrix.config.target, '-linux-musl') }}
+        if: ${{ !contains(matrix.config.target, 'ios') && !contains(matrix.config.target, '-linux-musl') && !contains(matrix.config.target, '-linux-android') }}
         run: ${{ matrix.config.cargo }} clippy --all-targets --locked --target ${{ matrix.config.target }} ${{ env.CARGO_VARIANT_FLAG }} ${{ env.CARGO_FEATURE_FLAGS }} -- -D clippy::all
 
       - name: Prepare binary publish

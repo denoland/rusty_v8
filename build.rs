@@ -170,6 +170,8 @@ fn acquire_lock() -> LockFile {
   lockfile
 }
 
+const ANDROID_NDK_DIR: &str = "./third_party/android_toolchain/ndk";
+
 fn build_binding() {
   // Bindgen needs Clang 21.1+ for V8's libc++ builtin type traits.
   if env::var("LIBCLANG_PATH").is_err() {
@@ -261,6 +263,10 @@ fn build_binding() {
       musl_sysroot.as_deref(),
       glibc_prefix.as_deref(),
     ));
+  } else if target_os == "android" {
+    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+    clang_args.push(format!("--sysroot={ANDROID_NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"));
+    clang_args.push(format!("--target={target_arch}-linux-android29"));
   } else if target_os == "windows" {
     // libclang otherwise discovers the runner's system Clang resource
     // directory, which may not match the pinned Chromium libclang.
@@ -609,22 +615,26 @@ fn build_v8(is_asan: bool) {
     } else {
       "unknown"
     };
-    if target_arch == "x86_64" {
-      maybe_install_sysroot("amd64");
-    }
+
+    // the host toolchains that build Android are linux x86_64
+    maybe_install_sysroot("amd64");
+
+    let android_ndk_version = "r30";
+
     gn_args.push(format!(r#"v8_target_cpu="{arch}""#).to_string());
     gn_args.push(format!(r#"target_cpu="{arch}""#).to_string());
     gn_args.push(r#"target_os="android""#.to_string());
     gn_args.push("treat_warnings_as_errors=false".to_string());
     gn_args.push("use_sysroot=true".to_string());
+    gn_args.push(format!(r#"android_ndk_version="{android_ndk_version}""#));
 
     // NDK 23 and above removes libgcc entirely.
     // https://github.com/rust-lang/rust/pull/85806
-    if !Path::new("./third_party/android_ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++").exists() {
+    if !Path::new(&format!("{ANDROID_NDK_DIR}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android29-clang++")).exists() {
         assert!(Command::new("curl")
         .arg("-L")
-        .arg("-o").arg("./third_party/android-ndk-r26c-linux.zip")
-        .arg("https://dl.google.com/android/repository/android-ndk-r26c-linux.zip")
+        .arg("-o").arg(format!("./third_party/android-ndk-{android_ndk_version}-linux.zip"))
+        .arg(format!("https://dl.google.com/android/repository/android-ndk-{android_ndk_version}-linux.zip"))
         .status()
         .unwrap()
         .success());
@@ -633,14 +643,16 @@ fn build_v8(is_asan: bool) {
         .arg("-d").arg("./third_party/")
         .arg("-o")
         .arg("-q")
-        .arg("./third_party/android-ndk-r26c-linux.zip")
+        .arg(format!("./third_party/android-ndk-{android_ndk_version}-linux.zip"))
         .status()
         .unwrap()
         .success());
 
-        fs::rename("./third_party/android-ndk-r26c", "./third_party/android_ndk").unwrap();
-        fs::remove_file("./third_party/android-ndk-r26c-linux.zip").unwrap();
+        fs::create_dir_all("./third_party/android_toolchain").unwrap();
+        fs::rename(format!("./third_party/android-ndk-{android_ndk_version}"), ANDROID_NDK_DIR).unwrap();
+        fs::remove_file(format!("./third_party/android-ndk-{android_ndk_version}-linux.zip")).unwrap();
       }
+    link_android_compiler_rt(Path::new(ANDROID_NDK_DIR));
     static CHROMIUM_URI: &str = "https://chromium.googlesource.com";
     maybe_clone_repo(
       "./third_party/android_platform",
@@ -1730,6 +1742,42 @@ fn copy_archive_to(url: &str, dst_path: &Path) -> Result<(), String> {
   Ok(())
 }
 
+fn link_android_compiler_rt(android_ndk: &Path) {
+  let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+
+  let host_os = match env::consts::OS {
+    "linux" => "linux",
+    "macos" => "darwin",
+    "windows" => "windows",
+    os => panic!(
+      "Unable to build for Android on {os}, the Android NDK only provides prebuilt binaries for macOS, Linux, and 64-bit Windows"
+    ),
+  };
+
+  let toolchain_dir = android_ndk
+    .join("toolchains")
+    .join("llvm")
+    .join("prebuilt")
+    .join(format!("{host_os}-x86_64"));
+
+  let clang_dir = toolchain_dir.join("lib").join("clang");
+
+  let compiler_rt_dir = fs::read_dir(&clang_dir)
+      .expect("the Android NDK included clang compiler-rt parent directory could not be found")
+      .filter_map(Result::ok)
+      .map(|x| x.path().join("lib/linux"))
+      .find(|x| x.is_dir())
+      .expect("the Android NDK included clang compiler-rt directory could not be found");
+
+  println!(
+    "cargo:rustc-link-search=native={}",
+    compiler_rt_dir.display()
+  );
+  println!(
+    "cargo:rustc-link-lib=static=clang_rt.builtins-{target_arch}-android"
+  );
+}
+
 fn print_link_flags() {
   println!("cargo:rustc-link-lib=static=rusty_v8");
   let should_dyn_link_libcxx = env::var("CARGO_FEATURE_USE_CUSTOM_LIBCXX")
@@ -1764,6 +1812,30 @@ fn print_link_flags() {
   }
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
   let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
+
+  if target_os == "android" {
+    println!("cargo:rustc-link-lib=dylib=log");
+
+    // When built from source, we link compiler-rt from the NDK we download
+    if !env_bool("V8_FROM_SOURCE") {
+      println!("cargo:rerun-if-env-changed=ANDROID_HOME");
+      println!("cargo:rerun-if-env-changed=ANDROID_SDK_ROOT");
+      println!("cargo:rerun-if-env-changed=ANDROID_NDK_VERSION");
+
+      let android_home = env::var("ANDROID_HOME")
+        .or_else(|err| env::var("ANDROID_SDK_ROOT").map_err(|_| err))
+        .expect(r#""ANDROID_HOME" or "ANDROID_SDK_ROOT" must be set"#);
+
+      let android_ndk_version = env::var("ANDROID_NDK_VERSION")
+        .expect(r#""ANDROID_NDK_VERSION" must be set"#);
+
+      link_android_compiler_rt(
+        &PathBuf::from(android_home)
+          .join("ndk")
+          .join(android_ndk_version),
+      );
+    }
+  }
 
   if target_os == "windows" {
     println!("cargo:rustc-link-lib=dylib=winmm");

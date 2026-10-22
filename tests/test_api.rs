@@ -10097,6 +10097,7 @@ fn clear_kept_objects() {
 #[test]
 fn wasm_streaming_callback() {
   thread_local! {
+    #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
     static WS: RefCell<Option<v8::WasmStreaming<false>>> = const { RefCell::new(None) };
   }
 
@@ -10630,6 +10631,7 @@ fn oom_callback() {
 #[test]
 fn prepare_stack_trace_callback() {
   thread_local! {
+    #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
     static SITES: RefCell<Option<v8::Global<v8::Array>>> = const { RefCell::new(None) };
   }
 
@@ -16344,6 +16346,7 @@ fn global_drop_from_cold_tls_destructor() {
 
   std::thread::spawn(move || {
     thread_local! {
+      #[cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
       static TLS_GLOBAL: RefCell<Option<v8::Global<v8::String>>> =
         const { RefCell::new(None) };
     }
