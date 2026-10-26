@@ -3036,6 +3036,17 @@ bool v8__PropertyCallbackInfo__ShouldThrowOnError(
   return self.ShouldThrowOnError();
 }
 
+// Only setter, definer and deleter callbacks (and accessor setters) carry the
+// "should throw on error" flag, and V8 decides by the info's type:
+// `PropertyCallbackInfo<T>::ShouldThrowOnError()` is `false` at compile time
+// unless `T` is `v8::Boolean` or `void` (`HasShouldThrowOnError()`). Asked as
+// `PropertyCallbackInfo<v8::Value>` above, it is `false` for every caller.
+// The layout does not depend on `T`.
+bool v8__PropertyCallbackInfo__ShouldThrowOnError__Boolean(
+    const v8::PropertyCallbackInfo<v8::Boolean>& self) {
+  return self.ShouldThrowOnError();
+}
+
 const v8::RegExp* v8__RegExp__New(const v8::Context& context,
                                   const v8::String& pattern,
                                   v8::RegExp::Flags flags) {
