@@ -1,6 +1,6 @@
 # Rusty V8 Binding
 
-V8 Version: 15.2.124.1
+V8 Version: 15.8.62.23
 
 [![ci](https://github.com/denoland/rusty_v8/actions/workflows/ci.yml/badge.svg)](https://github.com/denoland/rusty_v8/actions)
 [![crates](https://img.shields.io/crates/v/v8.svg)](https://crates.io/crates/v8)
@@ -253,7 +253,7 @@ unreliable, so source builds must populate its pinned debugger visualizers:
 
 ```bash
 mkdir -p tools/win
-curl -fL https://chromium.googlesource.com/chromium/src/tools/win/+archive/faefd1b6fa9eeb033ad6fe60368ccb9bf908cbd0.tar.gz |
+curl -fL https://chromium.googlesource.com/chromium/src/tools/win/+archive/d72db9e3040567a7589e00c0ad7ddf25c3b070bc.tar.gz |
   tar -xz -C tools/win
 ```
 

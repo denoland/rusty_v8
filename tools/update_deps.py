@@ -1,4 +1,5 @@
 from v8_deps import deps
+import os
 import subprocess
 import sys
 
@@ -39,7 +40,12 @@ with open('.gitmodules') as f:
             name = line.split(" ")[1][1:-3]
             if name in deps:
                 try:
-                    if name != 'build':
+                    # build may hold a locally rebased checkout, so only
+                    # initialize it when it is missing. CI checks out just
+                    # v8, and git run in an empty submodule directory would
+                    # act on rusty_v8 itself.
+                    if name != 'build' or not os.path.exists(
+                            os.path.join(name, '.git')):
                         run_git([
                             'submodule',
                             'update',

@@ -220,6 +220,10 @@ fn build_binding() {
     "-isystembuildtools/third_party/libc++".to_string(),
     "-isystemthird_party/libc++/src/include".to_string(),
     "-isystemthird_party/libc++abi/src/include".to_string(),
+    // libc++ now defines std::aligned_union with a recursive variadic union
+    // that bindgen can't lay out ("Not an item" panic). Nothing we bind uses
+    // it, so skip that header by defining its include guard.
+    "-D_LIBCPP___TYPE_TRAITS_ALIGNED_UNION_H".to_string(),
   ];
 
   let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
@@ -390,6 +394,7 @@ fn build_v8(is_asan: bool) {
   }
 
   download_rust_toolchain();
+  download_gcs_dep("third_party/llvm-libclang");
 
   // `#[cfg(...)]` attributes don't work as expected from build.rs -- they refer to the configuration
   // of the host system which the build.rs script will be running on. In short, `cfg!(target_<os/arch>)`
@@ -772,6 +777,19 @@ fn download_rust_toolchain() {
   assert!(
     Command::new(python())
       .arg("./tools/rust_toolchain.py")
+      .status()
+      .unwrap()
+      .success()
+  );
+}
+
+/// Downloads a GCS dependency listed in V8's DEPS, such as the libclang
+/// Python bindings that V8's metagen step needs.
+fn download_gcs_dep(dir: &str) {
+  assert!(
+    Command::new(python())
+      .arg("./tools/rust_toolchain.py")
+      .arg(dir)
       .status()
       .unwrap()
       .success()
@@ -2097,6 +2115,18 @@ fn ninja(gn_out_dir: &Path, maybe_env: Option<NinjaEnv>) -> Command {
   {
     cmd.arg("-j");
     cmd.arg(jobs);
+  }
+  // V8's metagen step runs `gn desc` itself and looks for gn only under
+  // buildtools/ or on PATH, so put the gn we use first on PATH.
+  if let Ok(gn) = env::var("GN")
+    && let Some(gn_dir) = Path::new(&gn).parent()
+    && !gn_dir.as_os_str().is_empty()
+  {
+    let mut paths = vec![gn_dir.to_path_buf()];
+    if let Some(path) = env::var_os("PATH") {
+      paths.extend(env::split_paths(&path));
+    }
+    cmd.env("PATH", env::join_paths(paths).unwrap());
   }
   if let Some(env) = maybe_env {
     for item in env {
