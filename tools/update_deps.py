@@ -39,15 +39,17 @@ with open('.gitmodules') as f:
             name = line.split(" ")[1][1:-3]
             if name in deps:
                 try:
-                    if name != 'build':
-                        run_git([
-                            'submodule',
-                            'update',
-                            '--init',
-                            '--checkout',
-                            '--',
-                            name,
-                        ])
+                    # Initialize every submodule, including build. CI only
+                    # checks out v8, and running git in an uninitialized
+                    # submodule directory would act on rusty_v8 itself.
+                    run_git([
+                        'submodule',
+                        'update',
+                        '--init',
+                        '--checkout',
+                        '--',
+                        name,
+                    ])
                     process(name, deps[name])
                     names.append(name)
                 except (
