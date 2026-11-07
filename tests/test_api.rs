@@ -7850,7 +7850,8 @@ fn inspector_exception_thrown() {
   assert_eq!(channel.state.borrow().count_send_notification, 2);
   let notification =
     channel.state.borrow().notifications.get(1).unwrap().clone();
-  let expected_notification = "{\"method\":\"Runtime.exceptionThrown\",\"params\":{\"timestamp\":0,\"exceptionDetails\":{\"exceptionId\":1,\"text\":\"test exception\",\"lineNumber\":0,\"columnNumber\":0,\"scriptId\":\"1\",\"url\":\"file://exception.js\",\"exception\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"Error\",\"description\":\"Error: This is a test error\",\"objectId\":\"1.1.1\",\"preview\":{\"type\":\"object\",\"subtype\":\"error\",\"description\":\"Error: This is a test error\",\"overflow\":false,\"properties\":[{\"name\":\"stack\",\"type\":\"string\",\"value\":\"Error: This is a test error\"},{\"name\":\"message\",\"type\":\"string\",\"value\":\"This is a test error\"}]}},\"executionContextId\":1}}}";
+  // Untrusted sessions report isolate id 0 in object ids since V8 15.8.
+  let expected_notification = "{\"method\":\"Runtime.exceptionThrown\",\"params\":{\"timestamp\":0,\"exceptionDetails\":{\"exceptionId\":1,\"text\":\"test exception\",\"lineNumber\":0,\"columnNumber\":0,\"scriptId\":\"1\",\"url\":\"file://exception.js\",\"exception\":{\"type\":\"object\",\"subtype\":\"error\",\"className\":\"Error\",\"description\":\"Error: This is a test error\",\"objectId\":\"0.1.1\",\"preview\":{\"type\":\"object\",\"subtype\":\"error\",\"description\":\"Error: This is a test error\",\"overflow\":false,\"properties\":[{\"name\":\"stack\",\"type\":\"string\",\"value\":\"Error: This is a test error\"},{\"name\":\"message\",\"type\":\"string\",\"value\":\"This is a test error\"}]}},\"executionContextId\":1}}}";
   assert_eq!(notification, expected_notification);
 }
 
@@ -8971,7 +8972,11 @@ fn synthetic_evaluation_steps<'s>(
     scope.reset();
   }
 
-  Some(v8::undefined(scope).into())
+  // V8 requires the evaluation steps to return a resolved promise.
+  let resolver = v8::PromiseResolver::new(scope).unwrap();
+  let undefined = v8::undefined(scope);
+  resolver.resolve(scope, undefined.into()).unwrap();
+  Some(resolver.get_promise(scope).into())
 }
 
 #[test]
@@ -17191,6 +17196,7 @@ fn dictionary_template() {
 }
 
 #[test]
+#[should_panic(expected = "U+00E9")]
 fn dictionary_template_non_ascii_name() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
@@ -17199,36 +17205,8 @@ fn dictionary_template_non_ascii_name() {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    // V8 reads the declared names as Latin-1, so the UTF-8 bytes of a name
-    // like "café" have to be transcoded before they are handed over, or the
-    // resulting key would be "cafÃ©" and neither lookup below would find it.
-    let templ = v8::DictionaryTemplate::new(scope, &["café", "naïve"]);
-
-    let one = v8::Integer::new(scope, 1);
-    let two = v8::Integer::new(scope, 2);
-    let obj = templ
-      .new_instance(scope, &[Some(one.into()), Some(two.into())])
-      .unwrap();
-
-    let key = v8::String::new(scope, "café").unwrap();
-    assert_eq!(
-      obj.get(scope, key.into()).unwrap().int32_value(scope),
-      Some(1)
-    );
-
-    let global = context.global(scope);
-    let name = v8::String::new(scope, "obj").unwrap();
-    global.set(scope, name.into(), obj.into()).unwrap();
-    assert_eq!(
-      eval(scope, "obj['naïve']").unwrap().int32_value(scope),
-      Some(2)
-    );
-    assert_eq!(
-      eval(scope, "Object.keys(obj).join(',')")
-        .unwrap()
-        .to_rust_string_lossy(scope),
-      "café,naïve"
-    );
+    // Since V8 15.8 the declared names must be ASCII.
+    let _ = v8::DictionaryTemplate::new(scope, &["café"]);
   }
 }
 
@@ -17242,7 +17220,7 @@ fn dictionary_template_unrepresentable_name() {
     let context = v8::Context::new(scope, Default::default());
     let scope = &mut v8::ContextScope::new(scope, context);
 
-    // Code points above U+00FF cannot be expressed through this V8 API.
+    // Non-ASCII names cannot be expressed through this V8 API.
     let _ = v8::DictionaryTemplate::new(scope, &["😀"]);
   }
 }

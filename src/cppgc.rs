@@ -23,7 +23,6 @@ unsafe extern "C" {
     marking_support: MarkingType,
     sweeping_support: SweepingType,
   ) -> *mut Heap;
-  fn v8__CppHeap__Terminate(heap: *mut Heap);
   fn v8__CppHeap__DELETE(heap: *mut Heap);
   fn cppgc__make_garbage_collectable(
     heap: *mut Heap,
@@ -286,12 +285,6 @@ impl Heap {
       cppgc__heap__enable_detached_garbage_collections_for_testing(
         self as *const Heap as *mut _,
       );
-    }
-  }
-
-  pub fn terminate(&mut self) {
-    unsafe {
-      v8__CppHeap__Terminate(self);
     }
   }
 }

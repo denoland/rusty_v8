@@ -1,6 +1,6 @@
 const UPSTREAM_REPOSITORY = "denoland/rusty_v8";
 const UPSTREAM_BRANCH = "main";
-const V8_TRACKING_BRANCH = "15.2-lkgr-denoland";
+const V8_TRACKING_BRANCH = "15.8-lkgr-denoland";
 const AUTOROLL_BRANCH = "autoroll";
 const PUSH_REMOTE = "origin";
 const UPDATER_PATH = "./tools/auto_update_v8.ts";
