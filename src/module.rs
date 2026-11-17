@@ -524,6 +524,10 @@ impl Module {
   /// export_names must not contain duplicates.
   /// module_name is used solely for logging/debugging and doesn't affect module
   /// behavior.
+  ///
+  /// evaluation_steps must return a resolved `Promise` on success, or `None`
+  /// if an exception was thrown. Since V8 15.8, V8 aborts the process if the
+  /// returned value is not a promise.
   #[inline(always)]
   pub fn create_synthetic_module<'s, 'i>(
     scope: &PinScope<'s, 'i>,

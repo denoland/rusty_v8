@@ -36,7 +36,6 @@ use crate::isolate::RealIsolate;
 use crate::scope::PinScope;
 use crate::support::MapFnTo;
 use crate::support::int;
-use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::ffi::c_char;
 use std::ptr::null;
@@ -1012,11 +1011,9 @@ impl DictionaryTemplate {
   ///
   /// # Panics
   ///
-  /// V8 internalizes the declared names as one-byte (Latin-1) strings, so a
-  /// name is only expressible if every one of its `char`s is at most
-  /// `U+00FF`. This function panics on a name containing any code point
-  /// beyond that; the property key would otherwise silently differ from the
-  /// string that was passed in.
+  /// Since V8 15.8 the declared names must be ASCII; V8 internalizes them
+  /// as one-byte strings and debug builds of V8 abort on any other byte.
+  /// This function panics on a name containing a non-ASCII character.
   ///
   /// V8 also rejects — by aborting the process — any name that is a canonical
   /// array index, such as `"0"`.
@@ -1025,38 +1022,19 @@ impl DictionaryTemplate {
     scope: &PinScope<'s, '_, ()>,
     names: &[&str],
   ) -> Local<'s, DictionaryTemplate> {
-    // The `std::string_view`s handed to V8 are internalized as one-byte
-    // strings, i.e. their bytes are read as Latin-1 rather than as UTF-8.
-    // ASCII is identical in both encodings and can be passed straight
-    // through; anything else has to be transcoded first, or "é" would end up
-    // as the two-character property name "Ã©".
-    let latin1: Vec<Cow<'_, [u8]>> = names
-      .iter()
-      .map(|name| {
-        if name.is_ascii() {
-          Cow::Borrowed(name.as_bytes())
-        } else {
-          Cow::Owned(
-            name
-              .chars()
-              .map(|c| {
-                u8::try_from(u32::from(c)).unwrap_or_else(|_| {
-                  panic!(
-                    "DictionaryTemplate property name {name:?} contains \
-                     U+{:04X}, which V8 cannot represent in a name declared \
-                     through this API",
-                    u32::from(c)
-                  )
-                })
-              })
-              .collect(),
-          )
-        }
-      })
-      .collect();
+    for name in names {
+      if let Some(c) = name.chars().find(|c| !c.is_ascii()) {
+        panic!(
+          "DictionaryTemplate property name {name:?} contains U+{:04X}; \
+           V8 only accepts ASCII names through this API",
+          u32::from(c)
+        );
+      }
+    }
+    let bytes: Vec<&[u8]> = names.iter().map(|name| name.as_bytes()).collect();
     let ptrs: Vec<*const c_char> =
-      latin1.iter().map(|n| n.as_ptr().cast()).collect();
-    let lengths: Vec<usize> = latin1.iter().map(|n| n.len()).collect();
+      bytes.iter().map(|n| n.as_ptr().cast()).collect();
+    let lengths: Vec<usize> = bytes.iter().map(|n| n.len()).collect();
     unsafe {
       scope.cast_local(|sd| {
         v8__DictionaryTemplate__New(

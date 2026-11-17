@@ -1667,13 +1667,27 @@ void v8__Template__SetIntrinsicDataProperty(const v8::Template& self,
                                                 attr);
 }
 
+// Rust passes accessor setters with the old PropertyCallbackInfo<void>
+// signature. V8 calls every setter through AccessorNameSetterCallbackV2 and
+// treats an unset return value as success, so this cast matches what V8
+// does internally (see PropertyCallbackArguments::CallAccessorSetter).
+using RustAccessorNameSetterCallback =
+    void (*)(v8::Local<v8::Name> property, v8::Local<v8::Value> value,
+             const v8::PropertyCallbackInfo<void>& info);
+
+static v8::AccessorNameSetterCallbackV2 to_setter_v2(
+    RustAccessorNameSetterCallback setter) {
+  return reinterpret_cast<v8::AccessorNameSetterCallbackV2>(setter);
+}
+
 void v8__Template__SetNativeDataProperty(const v8::Template& self,
                                          const v8::Name& key,
                                          v8::AccessorNameGetterCallback getter,
-                                         v8::AccessorNameSetterCallback setter,
+                                         RustAccessorNameSetterCallback setter,
                                          const v8::Value* data_or_null,
                                          v8::PropertyAttribute attr) {
-  ptr_to_local(&self)->SetNativeDataProperty(ptr_to_local(&key), getter, setter,
+  ptr_to_local(&self)->SetNativeDataProperty(ptr_to_local(&key), getter,
+                                             to_setter_v2(setter),
                                              ptr_to_local(data_or_null), attr);
 }
 
@@ -1709,9 +1723,10 @@ void v8__ObjectTemplate__SetInternalFieldCount(const v8::ObjectTemplate& self,
 void v8__ObjectTemplate__SetNativeDataProperty(
     const v8::ObjectTemplate& self, const v8::Name& key,
     v8::AccessorNameGetterCallback getter,
-    v8::AccessorNameSetterCallback setter, const v8::Value* data_or_null,
+    RustAccessorNameSetterCallback setter, const v8::Value* data_or_null,
     v8::PropertyAttribute attr) {
-  ptr_to_local(&self)->SetNativeDataProperty(ptr_to_local(&key), getter, setter,
+  ptr_to_local(&self)->SetNativeDataProperty(ptr_to_local(&key), getter,
+                                             to_setter_v2(setter),
                                              ptr_to_local(data_or_null), attr);
 }
 
@@ -1815,7 +1830,7 @@ bool v8__Object__IsApiWrapper(const v8::Object& self) {
 }
 
 const v8::Value* v8__Object__GetPrototype(const v8::Object& self) {
-  return local_to_ptr(ptr_to_local(&self)->GetPrototypeV2());
+  return local_to_ptr(ptr_to_local(&self)->GetPrototype());
 }
 
 const v8::Object* v8__Object__FindInstanceInPrototypeChain(
@@ -1850,7 +1865,7 @@ MaybeBool v8__Object__SetIndex(const v8::Object& self,
 MaybeBool v8__Object__SetPrototype(const v8::Object& self,
                                    const v8::Context& context,
                                    const v8::Value& prototype) {
-  return maybe_to_maybe_bool(ptr_to_local(&self)->SetPrototypeV2(
+  return maybe_to_maybe_bool(ptr_to_local(&self)->SetPrototype(
       ptr_to_local(&context), ptr_to_local(&prototype)));
 }
 
@@ -1887,11 +1902,11 @@ MaybeBool v8__Object__SetAccessor(const v8::Object& self,
                                   const v8::Context& context,
                                   const v8::Name& key,
                                   v8::AccessorNameGetterCallback getter,
-                                  v8::AccessorNameSetterCallback setter,
+                                  RustAccessorNameSetterCallback setter,
                                   const v8::Value* data_or_null,
                                   v8::PropertyAttribute attr) {
   return maybe_to_maybe_bool(ptr_to_local(&self)->SetNativeDataProperty(
-      ptr_to_local(&context), ptr_to_local(&key), getter, setter,
+      ptr_to_local(&context), ptr_to_local(&key), getter, to_setter_v2(setter),
       ptr_to_local(data_or_null), attr));
 }
 
@@ -2633,8 +2648,10 @@ void v8__Context__SetContinuationPreservedEmbedderData(v8::Isolate* isolate,
 
 const v8::Value* v8__Context__GetContinuationPreservedEmbedderData(
     v8::Isolate* isolate) {
+  // Since 15.8 this returns Local<Data>. The setter only takes values, so
+  // whatever is stored is a Value (undefined by default).
   auto value = isolate->GetContinuationPreservedEmbedderData();
-  return local_to_ptr(value);
+  return local_to_ptr(value.As<v8::Value>());
 }
 
 class RustyMicrotaskQueueHandle {
@@ -2642,20 +2659,11 @@ class RustyMicrotaskQueueHandle {
   RustyMicrotaskQueueHandle(v8::Isolate* isolate, v8::MicrotasksPolicy policy)
       : queue_(v8::MicrotaskQueue::New(isolate, policy)) {}
 
-  v8::MicrotaskQueue* Get() const {
-#ifdef V8_CPPGC_MICROTASK_QUEUE
-    return queue_.Get();
-#else
-    return queue_.get();
-#endif
-  }
+  v8::MicrotaskQueue* Get() const { return queue_.Get(); }
 
  private:
-#ifdef V8_CPPGC_MICROTASK_QUEUE
+  // Microtask queues live on the cppgc heap, so hold them with a Persistent.
   cppgc::Persistent<v8::MicrotaskQueue> queue_;
-#else
-  std::unique_ptr<v8::MicrotaskQueue> queue_;
-#endif
 };
 
 RustyMicrotaskQueueHandle* v8__MicrotaskQueueHandle__New(
@@ -2685,22 +2693,11 @@ bool v8__MicrotaskQueue__BelongsTo(const v8::MicrotaskQueue* self,
   namespace i = v8::internal;
   const i::MicrotaskQueue* queue = static_cast<const i::MicrotaskQueue*>(self);
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
-#ifdef V8_CPPGC_MICROTASK_QUEUE
   if (queue == i_isolate->default_microtask_queue()) return true;
   for (const auto& weak : i_isolate->microtask_queues()) {
     if (weak.Get() == queue) return true;
   }
   return false;
-#else
-  // The queues form a ring that starts at the default queue.
-  const i::MicrotaskQueue* first = i_isolate->default_microtask_queue();
-  const i::MicrotaskQueue* current = first;
-  do {
-    if (current == queue) return true;
-    current = current->next();
-  } while (current != first);
-  return false;
-#endif
 }
 
 bool v8__MicrotaskQueue__IsRunningMicrotasks(v8::MicrotaskQueue* self) {
@@ -3022,7 +3019,7 @@ const v8::Value* v8__PropertyCallbackInfo__Data(
 
 const v8::Object* v8__PropertyCallbackInfo__Holder(
     const v8::PropertyCallbackInfo<v8::Value>& self) {
-  return local_to_ptr(self.HolderV2());
+  return local_to_ptr(self.Holder());
 }
 
 uintptr_t* v8__PropertyCallbackInfo__GetReturnValue(
@@ -5125,8 +5122,6 @@ v8::CppHeap* v8__CppHeap__Create(v8::Platform* platform,
   std::unique_ptr<v8::CppHeap> heap = v8::CppHeap::Create(platform, params);
   return heap.release();
 }
-
-void v8__CppHeap__Terminate(v8::CppHeap* cpp_heap) { cpp_heap->Terminate(); }
 
 void v8__CppHeap__DELETE(v8::CppHeap* self) { delete self; }
 

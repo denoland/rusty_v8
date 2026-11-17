@@ -15,6 +15,11 @@ static_library("rusty_v8") {
     "//v8/third_party/inspector_protocol:crdtp",
     "//src/deno_inspector:deno_inspector_protocol",
     "//third_party/simdutf:simdutf",
+
+    # binding.cc includes V8 internal headers, which need the include paths
+    # (ICU, fp16, ...) this target re-exports. Since 15.8 they no longer
+    # reach us through //v8:v8.
+    "//v8:v8_internal_headers",
   ]
   configs -= [
     "//build/config/compiler:default_init_stack_vars",

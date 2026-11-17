@@ -12,4 +12,5 @@ third_party/android_ndk
 third_party/android_platform
 third_party/catapult
 third_party/llvm-build
+third_party/llvm-libclang
 third_party/rust-toolchain

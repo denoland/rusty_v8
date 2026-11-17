@@ -2,11 +2,14 @@ from v8_deps import deps
 from download_file import DownloadUrl
 import platform
 import os
+import shutil
 import tempfile
 import tarfile
 import sys
 
-DIR = 'third_party/rust-toolchain'
+# Downloads a GCS dependency from V8's DEPS. Defaults to the Rust toolchain;
+# pass another DEPS path (e.g. third_party/llvm-libclang) as the argument.
+DIR = sys.argv[1] if len(sys.argv) > 1 else 'third_party/rust-toolchain'
 SENTINEL = f'{DIR}/.rusty_v8_version'
 
 host_os = platform.system().lower()
@@ -55,6 +58,9 @@ try:
 except FileNotFoundError:
     pass
 
+# Remove the previous version first so files it had and the new one dropped
+# don't linger and break the build.
+shutil.rmtree(DIR, ignore_errors=True)
 DownloadAndUnpack(url, DIR)
 
 with open(SENTINEL, 'w') as f:
