@@ -112,6 +112,9 @@ unsafe extern "C" {
   fn v8__PropertyCallbackInfo__ShouldThrowOnError(
     this: *const RawPropertyCallbackInfo,
   ) -> bool;
+  fn v8__PropertyCallbackInfo__ShouldThrowOnError__Boolean(
+    this: *const RawPropertyCallbackInfo,
+  ) -> bool;
 
   fn v8__ReturnValue__Value__Set(
     this: *mut RawReturnValue,
@@ -461,14 +464,25 @@ impl<'s> FunctionCallbackArguments<'s> {
 }
 
 #[derive(Debug)]
-pub struct PropertyCallbackArguments<'s>(&'s RawPropertyCallbackInfo);
+pub struct PropertyCallbackArguments<'s> {
+  info: &'s RawPropertyCallbackInfo,
+  /// Whether the callback is one V8 tells the caller's strictness: a setter,
+  /// definer or deleter (`PropertyCallbackInfo<Boolean>`) or an accessor
+  /// setter (`PropertyCallbackInfo<void>`).
+  can_throw: bool,
+}
 
 impl<'s> PropertyCallbackArguments<'s> {
   #[inline(always)]
-  pub(crate) fn from_property_callback_info<T>(
+  pub(crate) fn from_property_callback_info<T: 'static>(
     info: &'s PropertyCallbackInfo<T>,
   ) -> Self {
-    Self(&info.0)
+    let kind = std::any::TypeId::of::<T>();
+    Self {
+      info: &info.0,
+      can_throw: kind == std::any::TypeId::of::<Boolean>()
+        || kind == std::any::TypeId::of::<()>(),
+    }
   }
 
   /// Returns the object in the prototype chain of the receiver that has the
@@ -479,7 +493,7 @@ impl<'s> PropertyCallbackArguments<'s> {
   #[inline(always)]
   pub fn holder(&self) -> Local<'s, Object> {
     unsafe {
-      Local::from_raw(v8__PropertyCallbackInfo__Holder(self.0))
+      Local::from_raw(v8__PropertyCallbackInfo__Holder(self.info))
         .unwrap_unchecked()
     }
   }
@@ -490,7 +504,8 @@ impl<'s> PropertyCallbackArguments<'s> {
   #[inline(always)]
   pub fn data(&self) -> Local<'s, Value> {
     unsafe {
-      Local::from_raw(v8__PropertyCallbackInfo__Data(self.0)).unwrap_unchecked()
+      Local::from_raw(v8__PropertyCallbackInfo__Data(self.info))
+        .unwrap_unchecked()
     }
   }
 
@@ -498,10 +513,17 @@ impl<'s> PropertyCallbackArguments<'s> {
   /// occurs. Usually, `true` corresponds to `'use strict'`.
   ///
   /// Always `false` when intercepting `Reflect.set()` independent of the
-  /// language mode.
+  /// language mode, and in callbacks other than setters, definers and
+  /// deleters.
   #[inline(always)]
   pub fn should_throw_on_error(&self) -> bool {
-    unsafe { v8__PropertyCallbackInfo__ShouldThrowOnError(self.0) }
+    if self.can_throw {
+      unsafe {
+        v8__PropertyCallbackInfo__ShouldThrowOnError__Boolean(self.info)
+      }
+    } else {
+      unsafe { v8__PropertyCallbackInfo__ShouldThrowOnError(self.info) }
+    }
   }
 }
 
