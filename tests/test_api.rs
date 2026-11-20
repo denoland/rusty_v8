@@ -1722,6 +1722,64 @@ fn exception() {
 }
 
 #[test]
+#[cfg(v8_enable_webassembly)]
+fn wasm_exceptions() {
+  let _setup_guard = setup::parallel_test();
+  let isolate = &mut v8::Isolate::new(Default::default());
+  v8::scope!(let scope, isolate);
+
+  let context = v8::Context::new(scope, Default::default());
+  let scope = &mut v8::ContextScope::new(scope, context);
+
+  type Ctor = for<'s> fn(
+    &v8::PinScope<'s, '_>,
+    v8::Local<v8::String>,
+  ) -> v8::Local<'s, v8::Value>;
+
+  // Unlike the other three, `SuspendError` is installed by V8's JSPI setup,
+  // which is skipped under `--wasm-jitless`. Check that the default
+  // configuration this test runs in really does have it before relying on it.
+  assert!(
+    eval(scope, r#"typeof WebAssembly.SuspendError === "function""#)
+      .unwrap()
+      .is_true(),
+    "expected JSPI to be installed in the default configuration"
+  );
+
+  let cases: &[(Ctor, &str)] = &[
+    (v8::Exception::wasm_compile_error, "CompileError"),
+    (v8::Exception::wasm_link_error, "LinkError"),
+    (v8::Exception::wasm_runtime_error, "RuntimeError"),
+    (v8::Exception::wasm_suspend_error, "SuspendError"),
+  ];
+
+  for (ctor, constructor_name) in cases {
+    let msg_in = v8::String::new(scope, "This is a test error").unwrap();
+    let exception = ctor(scope, msg_in);
+    assert!(exception.is_native_error());
+
+    let object: v8::Local<v8::Object> = exception.try_into().unwrap();
+    assert_eq!(
+      object.get_constructor_name().to_rust_string_lossy(scope),
+      *constructor_name
+    );
+
+    let message_key = v8::String::new(scope, "message").unwrap();
+    let msg_out = object.get(scope, message_key.into()).unwrap();
+    assert!(msg_out.strict_equals(msg_in.into()));
+  }
+}
+
+#[test]
+fn message_constants() {
+  // These mirror V8's `Message::kNoLineNumberInfo`, `kNoColumnInfo` and
+  // `kNoScriptIdInfo`; `binding.cc` static asserts that they stay in sync.
+  assert_eq!(v8::Message::NO_LINE_NUMBER_INFO, 0);
+  assert_eq!(v8::Message::NO_COLUMN_INFO, 0);
+  assert_eq!(v8::Message::NO_SCRIPT_ID_INFO, 0);
+}
+
+#[test]
 fn create_message_argument_lifetimes() {
   let _setup_guard = setup::parallel_test();
   let isolate = &mut v8::Isolate::new(Default::default());
