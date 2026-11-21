@@ -1193,6 +1193,17 @@ impl<T> Drop for Weak<T> {
       unsafe { v8__Global__Reset(data.cast().as_ptr()) };
       remove_finalizer(self.data.as_ref().unwrap().finalizer_id);
     } else if let Some(weak_data) = self.data.take() {
+      // The isolate handle is already null (the isolate is being dropped) but
+      // the first pass callback has not run: V8 still holds the weak global
+      // and its teardown GC may still call the callbacks with this WeakData.
+      // This happens to the `Weak` of a context annex, which is dropped by the
+      // guaranteed finalizers that `OwnedIsolate::drop` drains. Leak it like
+      // the case below: the second pass callback frees it.
+      if weak_data.pointer.get().is_some() {
+        weak_data.weak_dropped.set(true);
+        Box::leak(weak_data);
+        return;
+      }
       // The second pass callback removes the finalizer, so if there is one,
       // the second pass hasn't yet run, and WeakData will have to be alive.
       // In that case we leak the WeakData but remove the finalizer.
